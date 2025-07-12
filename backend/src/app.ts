@@ -1,11 +1,14 @@
 import express, { NextFunction, Request, Response } from 'express';
 import createHttpError, { isHttpError } from 'http-errors';
 import cors from 'cors';
+import urlsRoutes from './routes/urls.routes';
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
+
+app.use('/api/urls', urlsRoutes);
 
 app.get('/', (req, res) => {
   console.log('✅ Received GET / request');

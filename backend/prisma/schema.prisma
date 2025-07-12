@@ -1,0 +1,36 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Url {
+  id               String       @id @default(uuid())
+  url              String       @db.VarChar(2048)
+  htmlVersion      String?      @db.VarChar(10)
+  title            String?      @db.VarChar(512)
+  h1Count          Int          @default(0)
+  h2Count          Int          @default(0)
+  h3Count          Int          @default(0)
+  h4Count          Int          @default(0)
+  h5Count          Int          @default(0)
+  h6Count          Int          @default(0)
+  internalLinks    Int          @default(0)
+  externalLinks    Int          @default(0)
+  brokenLinksCount Int          @default(0)
+  hasLoginForm     Boolean      @default(false)
+  createdAt        DateTime     @default(now())
+  updatedAt        DateTime     @updatedAt
+  brokenLinks      BrokenLink[] @relation("BrokenLinksOnUrl")
+}
+
+model BrokenLink {
+  id         Int    @id @default(autoincrement())
+  url        Url    @relation(fields: [urlId], references: [id], name: "BrokenLinksOnUrl")
+  urlId      String
+  link       String @db.VarChar(2048)
+  statusCode Int
+}
