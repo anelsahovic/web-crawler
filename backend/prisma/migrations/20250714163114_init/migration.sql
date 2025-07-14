@@ -1,0 +1,35 @@
+-- CreateTable
+CREATE TABLE `Url` (
+    `id` VARCHAR(191) NOT NULL,
+    `url` VARCHAR(2048) NOT NULL,
+    `htmlVersion` VARCHAR(10) NULL,
+    `title` VARCHAR(512) NULL,
+    `h1Count` INTEGER NOT NULL DEFAULT 0,
+    `h2Count` INTEGER NOT NULL DEFAULT 0,
+    `h3Count` INTEGER NOT NULL DEFAULT 0,
+    `h4Count` INTEGER NOT NULL DEFAULT 0,
+    `h5Count` INTEGER NOT NULL DEFAULT 0,
+    `h6Count` INTEGER NOT NULL DEFAULT 0,
+    `internalLinks` INTEGER NOT NULL DEFAULT 0,
+    `externalLinks` INTEGER NOT NULL DEFAULT 0,
+    `brokenLinksCount` INTEGER NOT NULL DEFAULT 0,
+    `hasLoginForm` BOOLEAN NOT NULL DEFAULT false,
+    `status` ENUM('QUEUED', 'RUNNING', 'DONE', 'ERROR') NOT NULL DEFAULT 'QUEUED',
+    `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
+    `updatedAt` DATETIME(3) NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- CreateTable
+CREATE TABLE `BrokenLink` (
+    `id` INTEGER NOT NULL AUTO_INCREMENT,
+    `urlId` VARCHAR(191) NOT NULL,
+    `link` VARCHAR(2048) NOT NULL,
+    `statusCode` INTEGER NOT NULL,
+
+    PRIMARY KEY (`id`)
+) DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+
+-- AddForeignKey
+ALTER TABLE `BrokenLink` ADD CONSTRAINT `BrokenLink_urlId_fkey` FOREIGN KEY (`urlId`) REFERENCES `Url`(`id`) ON DELETE CASCADE ON UPDATE CASCADE;
