@@ -1,7 +1,10 @@
 import express from 'express';
 import * as UrlsController from '../controllers/urls.controller';
+import { authorize } from '../middlewares/auth.middleware';
 
 const router = express.Router();
+
+router.use(authorize);
 
 // get all urls from database
 router.get('/', UrlsController.index);
