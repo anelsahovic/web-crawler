@@ -3,6 +3,7 @@ import { CrawlUrlBody } from '../zodSchemas/urls.schemas';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { URL as NodeURL } from 'url';
+import createHttpError from 'http-errors';
 
 const prisma = new PrismaClient();
 
@@ -10,14 +11,23 @@ export async function getUrls() {
   return await prisma.url.findMany();
 }
 
-export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
-  const { data: html } = await axios.get(body.rawUrl, {
+export async function getUrlById(id: string) {
+  return await prisma.url.findUnique({
+    where: { id },
+    include: {
+      brokenLinks: true,
+    },
+  });
+}
+
+async function analyzeUrl(rawUrl: string) {
+  const { data: html } = await axios.get(rawUrl, {
     timeout: 10000,
     headers: { 'User-Agent': 'Mozilla/5.0 crawler-bot' },
   });
 
   const $ = cheerio.load(html);
-  const base = new NodeURL(body.rawUrl);
+  const base = new NodeURL(rawUrl);
 
   // HTML version (basic guess)
   const htmlVersion = $('html').attr('xmlns') ? 'XHTML' : 'HTML5';
@@ -46,7 +56,7 @@ export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
     let fullUrl: string;
 
     try {
-      fullUrl = new NodeURL(href, body.rawUrl).href;
+      fullUrl = new NodeURL(href, rawUrl).href;
     } catch (error) {
       console.log(error);
       continue;
@@ -73,25 +83,54 @@ export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
   // Login form detection
   const hasLoginForm = $('form input[type="password"]').length > 0;
 
+  return {
+    url: rawUrl,
+    htmlVersion,
+    title,
+    h1Count,
+    h2Count,
+    h3Count,
+    h4Count,
+    h5Count,
+    h6Count,
+    internalLinks: internal,
+    externalLinks: external,
+    brokenLinksCount: brokenLinks.length,
+    hasLoginForm,
+    brokenLinks,
+  };
+}
+
+export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
+  let pageData;
+  try {
+    pageData = await analyzeUrl(body.rawUrl);
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(500, 'Failed to crawl URL.');
+  }
+
+  if (!pageData) throw createHttpError(404, 'No crawled data found.');
+
   // Save to DB
   const savedUrl = await prisma.url.create({
     data: {
-      url: body.rawUrl,
-      htmlVersion,
-      title,
-      h1Count,
-      h2Count,
-      h3Count,
-      h4Count,
-      h5Count,
-      h6Count,
-      internalLinks: internal,
-      externalLinks: external,
-      brokenLinksCount: brokenLinks.length,
-      hasLoginForm,
+      url: pageData.url,
+      htmlVersion: pageData.htmlVersion,
+      title: pageData.title,
+      h1Count: pageData.h1Count,
+      h2Count: pageData.h2Count,
+      h3Count: pageData.h3Count,
+      h4Count: pageData.h4Count,
+      h5Count: pageData.h5Count,
+      h6Count: pageData.h6Count,
+      internalLinks: pageData.internalLinks,
+      externalLinks: pageData.externalLinks,
+      brokenLinksCount: pageData.brokenLinks.length,
+      hasLoginForm: pageData.hasLoginForm,
       brokenLinks: {
         createMany: {
-          data: brokenLinks,
+          data: pageData.brokenLinks,
         },
       },
     },
@@ -101,4 +140,60 @@ export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
   });
 
   return savedUrl;
+}
+
+export async function reanalyzeAndUpdateUrl(urlId: string) {
+  const foundUrl = await prisma.url.findUnique({ where: { id: urlId } });
+
+  if (!foundUrl) throw createHttpError(404, 'No URL found.');
+
+  let newCrawledData;
+  try {
+    newCrawledData = await analyzeUrl(foundUrl.url);
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(500, 'Failed to reanalyze URL.');
+  }
+
+  if (!newCrawledData) throw createHttpError(404, 'No crawled data found.');
+
+  return await prisma.url.update({
+    where: { id: urlId },
+    data: {
+      htmlVersion: newCrawledData.htmlVersion,
+      title: newCrawledData.title,
+      h1Count: newCrawledData.h1Count,
+      h2Count: newCrawledData.h2Count,
+      h3Count: newCrawledData.h3Count,
+      h4Count: newCrawledData.h4Count,
+      h5Count: newCrawledData.h5Count,
+      h6Count: newCrawledData.h6Count,
+      internalLinks: newCrawledData.internalLinks,
+      externalLinks: newCrawledData.externalLinks,
+      brokenLinksCount: newCrawledData.brokenLinksCount,
+      hasLoginForm: newCrawledData.hasLoginForm,
+      brokenLinks: {
+        deleteMany: {},
+        createMany: {
+          data: newCrawledData.brokenLinks,
+        },
+      },
+    },
+    include: {
+      brokenLinks: true,
+    },
+  });
+}
+
+export async function deleteUrl(id: string) {
+  const url = await prisma.url.findUnique({ where: { id } });
+
+  if (!url) throw createHttpError(404, 'Url not found.');
+
+  try {
+    await prisma.url.delete({ where: { id } });
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(500, 'Something went wrong while deleting the url.');
+  }
 }

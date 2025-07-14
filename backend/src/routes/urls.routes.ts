@@ -6,7 +6,16 @@ const router = express.Router();
 // get all urls from database
 router.get('/', UrlsController.index);
 
-// Submit a URL for immediate crawling
+// get single url with id
+router.get('/:urlId', UrlsController.show);
+
+// submit a URL for immediate crawling
 router.post('/', UrlsController.store);
+
+// recrawl and update the url
+router.put('/:urlId/reanalyze', UrlsController.reanalyze);
+
+// delete url from database
+router.delete('/:urlId', UrlsController.destroy);
 
 export default router;
