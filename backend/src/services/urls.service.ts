@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { PrismaClient, Url, UrlStatus } from '@prisma/client';
 import { CrawlUrlBody } from '../zodSchemas/urls.schemas';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -20,85 +20,74 @@ export async function getUrlById(id: string) {
   });
 }
 
-async function analyzeUrl(rawUrl: string) {
-  const { data: html } = await axios.get(rawUrl, {
-    timeout: 10000,
-    headers: { 'User-Agent': 'Mozilla/5.0 crawler-bot' },
+export async function addToTheQueue(body: CrawlUrlBody) {
+  return await prisma.url.create({
+    data: {
+      url: body.rawUrl,
+      status: 'QUEUED',
+    },
+  });
+}
+
+export async function crawlQueuedUrls() {
+  // get all urls with status queued or error sorted by created_at
+
+  const queuedUrls = await prisma.url.findMany({
+    where: {
+      status: { in: ['QUEUED', 'ERROR'] },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
   });
 
-  const $ = cheerio.load(html);
-  const base = new NodeURL(rawUrl);
+  if (!queuedUrls || queuedUrls.length === 0)
+    throw createHttpError(404, 'No queued urls available.');
 
-  // HTML version (basic guess)
-  const htmlVersion = $('html').attr('xmlns') ? 'XHTML' : 'HTML5';
+  const results: Url[] = [];
 
-  // Page title
-  const title = $('title').text().trim();
-
-  // Headings
-  const h1Count = $('h1').length;
-  const h2Count = $('h2').length;
-  const h3Count = $('h3').length;
-  const h4Count = $('h4').length;
-  const h5Count = $('h5').length;
-  const h6Count = $('h6').length;
-
-  // Links
-  const links = $('a');
-  let internal = 0;
-  let external = 0;
-  const brokenLinks: { link: string; statusCode: number }[] = [];
-
-  for (let i = 0; i < links.length; i++) {
-    const href = $(links[i]).attr('href');
-    if (!href || href.startsWith('#')) continue;
-
-    let fullUrl: string;
-
+  for (const queuedUrl of queuedUrls) {
     try {
-      fullUrl = new NodeURL(href, rawUrl).href;
-    } catch (error) {
-      console.log(error);
-      continue;
-    }
+      // update the status to running
+      await updateUrlStatus(queuedUrl.id, 'RUNNING');
 
-    const isInternal = new NodeURL(fullUrl).hostname === base.hostname;
-    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
-    isInternal ? internal++ : external++;
+      //analyze the url and crawl the page
+      const crawled = await analyzeUrl(queuedUrl.url);
 
-    // Check for broken links (status 4xx or 5xx)
-    try {
-      const response = await axios.get(fullUrl, {
-        timeout: 5000,
-        validateStatus: () => true,
+      // Update with new data
+      const updated = await prisma.url.update({
+        where: { id: queuedUrl.id },
+        data: {
+          status: 'DONE',
+          id: queuedUrl.id,
+          url: queuedUrl.url,
+          htmlVersion: crawled.htmlVersion,
+          title: crawled.title,
+          h1Count: crawled.h1Count,
+          h2Count: crawled.h2Count,
+          h3Count: crawled.h3Count,
+          h4Count: crawled.h4Count,
+          h5Count: crawled.h5Count,
+          h6Count: crawled.h6Count,
+          internalLinks: crawled.internalLinks,
+          externalLinks: crawled.externalLinks,
+          brokenLinksCount: crawled.brokenLinks.length,
+          hasLoginForm: crawled.hasLoginForm,
+          brokenLinks: {
+            deleteMany: {}, // clear old
+            createMany: { data: crawled.brokenLinks },
+          },
+        },
+        include: { brokenLinks: true },
       });
-      if (response.status >= 400) {
-        brokenLinks.push({ link: fullUrl, statusCode: response.status });
-      }
-    } catch {
-      brokenLinks.push({ link: fullUrl, statusCode: 0 }); // Network or parsing error
+
+      results.push(updated);
+    } catch (error) {
+      console.error(`Failed to crawl URL: ${queuedUrl.url}`, error);
+      await updateUrlStatus(queuedUrl.id, 'ERROR');
     }
   }
-
-  // Login form detection
-  const hasLoginForm = $('form input[type="password"]').length > 0;
-
-  return {
-    url: rawUrl,
-    htmlVersion,
-    title,
-    h1Count,
-    h2Count,
-    h3Count,
-    h4Count,
-    h5Count,
-    h6Count,
-    internalLinks: internal,
-    externalLinks: external,
-    brokenLinksCount: brokenLinks.length,
-    hasLoginForm,
-    brokenLinks,
-  };
+  return results;
 }
 
 export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
@@ -196,4 +185,94 @@ export async function deleteUrl(id: string) {
     console.error(error);
     throw createHttpError(500, 'Something went wrong while deleting the url.');
   }
+}
+
+async function analyzeUrl(rawUrl: string) {
+  const { data: html } = await axios.get(rawUrl, {
+    timeout: 10000,
+    headers: { 'User-Agent': 'Mozilla/5.0 crawler-bot' },
+  });
+
+  const $ = cheerio.load(html);
+  const base = new NodeURL(rawUrl);
+
+  // HTML version (basic guess)
+  const htmlVersion = $('html').attr('xmlns') ? 'XHTML' : 'HTML5';
+
+  // Page title
+  const title = $('title').text().trim();
+
+  // Headings
+  const h1Count = $('h1').length;
+  const h2Count = $('h2').length;
+  const h3Count = $('h3').length;
+  const h4Count = $('h4').length;
+  const h5Count = $('h5').length;
+  const h6Count = $('h6').length;
+
+  // Links
+  const links = $('a');
+  let internal = 0;
+  let external = 0;
+  const brokenLinks: { link: string; statusCode: number }[] = [];
+
+  for (let i = 0; i < links.length; i++) {
+    const href = $(links[i]).attr('href');
+    if (!href || href.startsWith('#')) continue;
+
+    let fullUrl: string;
+
+    try {
+      fullUrl = new NodeURL(href, rawUrl).href;
+    } catch (error) {
+      console.log(error);
+      continue;
+    }
+
+    const isInternal = new NodeURL(fullUrl).hostname === base.hostname;
+    // eslint-disable-next-line @typescript-eslint/no-unused-expressions
+    isInternal ? internal++ : external++;
+
+    // Check for broken links (status 4xx or 5xx)
+    try {
+      const response = await axios.get(fullUrl, {
+        timeout: 5000,
+        validateStatus: () => true,
+      });
+      if (response.status >= 400) {
+        brokenLinks.push({ link: fullUrl, statusCode: response.status });
+      }
+    } catch {
+      brokenLinks.push({ link: fullUrl, statusCode: 0 }); // Network or parsing error
+    }
+  }
+
+  // Login form detection
+  const hasLoginForm = $('form input[type="password"]').length > 0;
+
+  return {
+    url: rawUrl,
+    htmlVersion,
+    title,
+    h1Count,
+    h2Count,
+    h3Count,
+    h4Count,
+    h5Count,
+    h6Count,
+    internalLinks: internal,
+    externalLinks: external,
+    brokenLinksCount: brokenLinks.length,
+    hasLoginForm,
+    brokenLinks,
+  };
+}
+
+async function updateUrlStatus(id: string, status: UrlStatus) {
+  await prisma.url.update({
+    where: { id },
+    data: {
+      status,
+    },
+  });
 }

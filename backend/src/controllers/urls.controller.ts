@@ -1,6 +1,8 @@
 import { RequestHandler } from 'express';
 import {
+  addToTheQueue,
   analyzeAndSaveUrl,
+  crawlQueuedUrls,
   deleteUrl,
   getUrlById,
   getUrls,
@@ -59,18 +61,60 @@ export const store: RequestHandler<
 > = async (req, res, next) => {
   const body = req.body;
 
-  // validate the rawUrl before passed to service
-  const parsed = CrawlUrlSchema.safeParse(body);
-  if (!parsed.success) {
-    const tree = z.treeifyError(parsed.error);
-    const firstRawUrlError = tree.properties?.rawUrl?.errors?.[0];
-    throw createHttpError(400, firstRawUrlError || 'Invalid input');
-  }
-
   try {
+    // validate the rawUrl before passed to service
+    const parsed = CrawlUrlSchema.safeParse(body);
+    if (!parsed.success) {
+      const tree = z.treeifyError(parsed.error);
+      const firstRawUrlError = tree.properties?.rawUrl?.errors?.[0];
+      throw createHttpError(400, firstRawUrlError || 'Invalid input');
+    }
+
     const crawledUrl = await analyzeAndSaveUrl(body);
 
     res.status(201).json(crawledUrl);
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+
+export const queue: RequestHandler<
+  unknown,
+  unknown,
+  CrawlUrlBody,
+  unknown
+> = async (req, res, next) => {
+  const body = req.body;
+  try {
+    // validate the rawUrl before passed to service
+    const parsed = CrawlUrlSchema.safeParse(body);
+    if (!parsed.success) {
+      const tree = z.treeifyError(parsed.error);
+      const firstRawUrlError = tree.properties?.rawUrl?.errors?.[0];
+      throw createHttpError(400, firstRawUrlError || 'Invalid input');
+    }
+
+    const queuedUrl = await addToTheQueue(parsed.data);
+
+    if (!queuedUrl)
+      throw createHttpError(400, "Couldn't add the url to the queue.");
+
+    res.status(201).json({
+      message: 'URL successfully added to the queue',
+      data: queuedUrl,
+    });
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+
+export const crawlQueued: RequestHandler = async (req, res, next) => {
+  try {
+    const result = await crawlQueuedUrls(); // one clear entry point
+
+    res.status(200).json({ message: 'Crawling completed.', result });
   } catch (error) {
     console.error(error);
     next(error);
