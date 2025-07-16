@@ -11,6 +11,17 @@ export async function getUrls() {
   return await prisma.url.findMany();
 }
 
+export async function getQueuedUrls() {
+  return await prisma.url.findMany({
+    where: {
+      status: { in: ['QUEUED', 'ERROR'] },
+    },
+    orderBy: {
+      createdAt: 'asc',
+    },
+  });
+}
+
 export async function getUrlById(id: string) {
   return await prisma.url.findUnique({
     where: { id },
@@ -32,14 +43,7 @@ export async function addToTheQueue(body: CrawlUrlBody) {
 export async function crawlQueuedUrls() {
   // get all urls with status queued or error sorted by created_at
 
-  const queuedUrls = await prisma.url.findMany({
-    where: {
-      status: { in: ['QUEUED', 'ERROR'] },
-    },
-    orderBy: {
-      createdAt: 'asc',
-    },
-  });
+  const queuedUrls = await getQueuedUrls();
 
   if (!queuedUrls || queuedUrls.length === 0)
     throw createHttpError(404, 'No queued urls available.');

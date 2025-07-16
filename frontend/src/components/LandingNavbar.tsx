@@ -27,7 +27,7 @@ export default function TopNavbar() {
 
   return (
     <div className="fixed top-5 left-1/2 -translate-x-1/2 z-50">
-      <div className="p-1 h-12 w-full backdrop-blur rounded-lg bg-neutral-100/30 shadow-md border border-neutral-200 z-50">
+      <div className="p-1 px-2 h-14 w-full backdrop-blur rounded-lg bg-neutral-100/30 shadow-md border border-neutral-200 z-50">
         <div className="w-full h-full flex items-center justify-between gap-10 relative">
           <Link
             to="/"
@@ -64,7 +64,7 @@ export default function TopNavbar() {
           </div>
 
           <Link
-            to={'/home'}
+            to={'/crawl'}
             className={twMerge(
               buttonVariants({ variant: 'default' }),
               'text-base hidden sm:flex'
@@ -114,7 +114,7 @@ export default function TopNavbar() {
                         to={navItem.href}
                         className={`flex items-center justify-between px-4 py-2 rounded-lg text-base font-medium transition-all ${
                           navItem.href === pathname
-                            ? 'bg-blue-50 text-blue-700 font-semibold'
+                            ? 'bg-blue-50 text-primary font-semibold'
                             : 'text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900'
                         }`}
                       >
@@ -122,11 +122,21 @@ export default function TopNavbar() {
                           {navItem.icon} {navItem.title}
                         </span>
                         {navItem.href === pathname && (
-                          <FaAngleLeft className="text-blue-500" />
+                          <FaAngleLeft className="text-primary" />
                         )}
                       </Link>
                     </SheetClose>
                   ))}
+
+                  <Link
+                    to="/crawl"
+                    className={twMerge(
+                      buttonVariants({ variant: 'default', size: 'lg' }),
+                      'md:text-lg'
+                    )}
+                  >
+                    Get Started
+                  </Link>
                 </nav>
 
                 {/* Footer / Social Links */}

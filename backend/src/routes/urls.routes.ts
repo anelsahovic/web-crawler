@@ -9,6 +9,9 @@ router.use(authorize);
 // get all urls from database
 router.get('/', UrlsController.index);
 
+// get queued urls
+router.get('/queued', UrlsController.getQueued);
+
 // get single url with id
 router.get('/:urlId', UrlsController.show);
 

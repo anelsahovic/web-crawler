@@ -72,7 +72,7 @@ export default function About() {
         <div>
           <h2 className="text-2xl font-bold mb-4">📦 How to Use</h2>
           <ol className="list-decimal pl-6 space-y-2 text-base">
-            <li>Enter a URL on the Home or Dashboard page</li>
+            <li>Enter a URL on the Crawl or Dashboard page</li>
             <li>Choose to either crawl it immediately or queue it</li>
             <li>Track real-time crawl status in the dashboard</li>
             <li>View a detailed breakdown of the page's structure</li>

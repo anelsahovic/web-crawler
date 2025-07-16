@@ -1,7 +1,7 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import AppLayout from './components/AppLayout';
 import Dashboard from './pages/Dashboard';
-import Home from './pages/Home';
+import Crawl from './pages/Crawl';
 import NotFound from './pages/NotFound';
 import LandingPage from './pages/LandingPage';
 import UrlDetailPage from './pages/UrlDetailPage';
@@ -17,7 +17,7 @@ function App() {
           <Route path="/about" element={<About />} />
         </Route>
         <Route element={<AppLayout />}>
-          <Route path="/home" element={<Home />} />
+          <Route path="/crawl" element={<Crawl />} />
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/url/:urlId" element={<UrlDetailPage />} />
           <Route path="*" element={<NotFound />} />

@@ -24,7 +24,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-8 flex flex-col sm:flex-row gap-4">
           <Link
-            to="/home"
+            to="/crawl"
             className={twMerge(
               buttonVariants({ variant: 'default', size: 'lg' }),
               'md:text-lg'
@@ -194,7 +194,7 @@ export default function LandingPage() {
           Ready to crawl your first website?
         </h2>
         <Link
-          to="/home"
+          to="/crawl"
           className={twMerge(
             buttonVariants({ variant: 'default', size: 'lg' }),
             'text-lg'

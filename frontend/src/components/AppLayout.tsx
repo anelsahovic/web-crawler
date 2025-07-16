@@ -1,12 +1,13 @@
 // type Props = {};
 
 import { Outlet } from 'react-router-dom';
+import AppNavbar from './AppNavbar';
 
 export default function AppLayout() {
   return (
-    <div>
+    <div className="relative h-screen">
       {/* nav bar */}
-      <nav className=" bg-cyan-500 p-4 text-white">NAVBAR</nav>
+      <AppNavbar />
       {/* Page content */}
       <main>
         <Outlet />
