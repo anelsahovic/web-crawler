@@ -121,6 +121,7 @@ export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
       externalLinks: pageData.externalLinks,
       brokenLinksCount: pageData.brokenLinks.length,
       hasLoginForm: pageData.hasLoginForm,
+      status: 'DONE',
       brokenLinks: {
         createMany: {
           data: pageData.brokenLinks,

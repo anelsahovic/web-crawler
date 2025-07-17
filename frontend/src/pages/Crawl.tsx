@@ -1,12 +1,36 @@
-import { getQueuedUrls } from '@/api/urls';
+import { addUrlToQueue, crawlUrl, deleteUrl, getQueuedUrls } from '@/api/urls';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Url } from '@/types';
+import { CrawlUrlSchema, type CrawlUrlBody } from '@/zodSchemas/schemas';
 import axios from 'axios';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useForm } from 'react-hook-form';
 import { FaMinus } from 'react-icons/fa';
 import { Link } from 'react-router-dom';
+import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { getErrorMessage } from '@/lib/utils';
+import {
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage,
+} from '@/components/ui/form';
+import InfoCard from '@/components/InfoCard';
+import LoaderBars from '@/components/LoaderBars';
 
 // const mockQueuedUrls = [
 //   {
@@ -24,11 +48,16 @@ import { twMerge } from 'tailwind-merge';
 // ];
 
 export default function Crawl() {
-  const [input, setInput] = useState('');
-  const [queuedUrls, setQueuedUrls] = useState<Url[]>();
+  const [crawledUrl, setCrawledUrl] = useState<Url>();
+  const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
   const [loading, setLoading] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isCrawling, setIsCrawling] = useState(false);
+  const [openDialog, setOpenDialog] = useState(false);
   const [error, setError] = useState('');
+  const actionRef = useRef<'crawl' | 'queue' | null>(null);
 
+  // fetch queued urls
   useEffect(() => {
     const fetchQueuedUrls = async () => {
       try {
@@ -43,7 +72,6 @@ export default function Crawl() {
         } else {
           setError(response.data);
         }
-        console.log(response);
       } catch (error) {
         console.error(error);
         if (axios.isAxiosError(error)) {
@@ -63,6 +91,69 @@ export default function Crawl() {
 
     fetchQueuedUrls();
   }, []);
+
+  // delete queued url
+  const handleDeleteUrl = async (urlId: string) => {
+    try {
+      const response = await deleteUrl(urlId);
+
+      if (response.status === 204) {
+        setQueuedUrls((prev) => prev?.filter((url) => url.id !== urlId));
+        toast.success('Url removed from queued list');
+      } else {
+        if (response.statusText) {
+          toast.error(response.statusText);
+        } else {
+          toast.error("Cant't delete the member at the moment");
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      toast.error('Uh oh! Something went wrong');
+    }
+  };
+
+  // form for crawling and adding url to the queue
+  const form = useForm<CrawlUrlBody>({
+    resolver: zodResolver(CrawlUrlSchema),
+  });
+
+  const onSubmit = async (values: CrawlUrlBody) => {
+    const action = actionRef.current;
+    try {
+      setIsSubmitting(true);
+
+      // if Button 'Add to Queue' is clicked
+      if (action === 'queue') {
+        const response = await addUrlToQueue(values);
+        if (response.status === 201) {
+          setQueuedUrls((prev) => [...prev, response.data.data]);
+          toast.success('URL added to the queue');
+        } else {
+          toast.error('Failed adding URL to the queue');
+        }
+
+        // if Button 'Crawl now' is clicked
+      } else if (action === 'crawl') {
+        setIsCrawling(true);
+        const response = await crawlUrl(values);
+        if (response.status === 201) {
+          setOpenDialog(true);
+          toast.success('URL crawled successfully');
+          setCrawledUrl(response.data);
+        } else {
+          toast.error("Can't crawl URL now. Please try again later");
+        }
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+      setIsCrawling(false);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-start pt-20 px-4 gap-4">
@@ -91,26 +182,167 @@ export default function Crawl() {
       </h1>
 
       {/* Form - Input + Buttons */}
-      <div className="flex flex-col md:flex-row items-center gap-4 w-full max-w-3xl ">
-        <Input
-          type="text"
-          placeholder="Enter website URL..."
-          value={input}
-          onChange={(e) => setInput(e.target.value)}
-          className="w-full  sm:p-6"
-        />
-        <div className="flex gap-2 w-full sm:w-auto justify-center">
-          <Button className="text-base sm:p-6 sm:text-lg">Crawl Now</Button>
-          <Button
-            className={twMerge(
-              buttonVariants({ variant: 'secondary' }),
-              'text-base sm:p-6 sm:text-lg'
-            )}
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className="flex flex-col md:flex-row items-center gap-4 w-full max-w-3xl justify-between"
+        >
+          <div className="w-auto sm:w-full relative">
+            <FormField
+              control={form.control}
+              name="rawUrl"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel className="w-full flex justify-center sm:hidden">
+                    Enter URL
+                  </FormLabel>
+                  <FormControl>
+                    <Input
+                      type="text"
+                      placeholder="Enter website URL..."
+                      className="w-full sm:p-6"
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage className="text-center sm:absolute sm:bottom-0 sm:translate-y-6" />
+                </FormItem>
+              )}
+            />
+          </div>
+
+          <div className="flex w-full justify-center sm:w-auto gap-2">
+            <Button
+              className="text-base sm:p-6 sm:text-lg"
+              disabled={isSubmitting}
+              type="submit"
+              name="action"
+              value="crawl"
+              onClick={() => (actionRef.current = 'crawl')}
+            >
+              Crawl Now
+            </Button>
+            <Button
+              disabled={isSubmitting}
+              type="submit"
+              name="action"
+              value="queue"
+              onClick={() => (actionRef.current = 'queue')}
+              className={twMerge(
+                buttonVariants({ variant: 'secondary' }),
+                'text-base sm:p-6 sm:text-lg'
+              )}
+            >
+              Add to Queue
+            </Button>
+          </div>
+        </form>
+      </Form>
+
+      {/* show loader for crawling */}
+      {isCrawling && (
+        <Dialog open={true}>
+          <DialogTrigger asChild />
+          <DialogClose disabled asChild className="hidden"></DialogClose>
+          <DialogContent
+            onInteractOutside={(e) => e.preventDefault()}
+            onEscapeKeyDown={(e) => e.preventDefault()}
+            className="[&>button]:hidden"
           >
-            Add to Queue
-          </Button>
-        </div>
-      </div>
+            <DialogHeader className="text-center w-full">
+              <DialogTitle className="text-2xl text-center">
+                Crawling your URL
+              </DialogTitle>
+              <DialogDescription></DialogDescription>
+            </DialogHeader>
+            <div className="flex flex-col justify-center items-center gap-7  pt-5 pb-10">
+              <LoaderBars />
+              <p className="text-sm text-neutral-500">
+                Please wait this might take a while...
+              </p>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {/* Show crawled data dialog */}
+      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+        <DialogTrigger asChild />
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle className="text-2xl font-bold">
+              Crawled URL Summary
+            </DialogTitle>
+            <DialogDescription>
+              The following data was extracted from the provided URL.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="mt-4 space-y-4">
+            {!isSubmitting && !isCrawling && !crawledUrl && (
+              <p className="text-sm text-muted-foreground">
+                No URL data available.
+              </p>
+            )}
+
+            {!isSubmitting && !isCrawling && crawledUrl && (
+              <div className="space-y-4">
+                <div className="border rounded-xl p-4 shadow-sm bg-muted/50">
+                  {/* title */}
+                  <h2 className="text-lg font-semibold text-primary mb-1">
+                    {crawledUrl.title}
+                  </h2>
+                  {/* url */}
+                  <a
+                    href={crawledUrl.url}
+                    className="text-sm text-muted-foreground hover:text-primary"
+                  >
+                    {crawledUrl.url}
+                  </a>
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <InfoCard
+                    label="HTML Version"
+                    value={crawledUrl.htmlVersion}
+                  />
+                  <InfoCard
+                    label="Login Form"
+                    value={crawledUrl.hasLoginForm ? 'Yes' : 'No'}
+                  />
+                  <InfoCard label="H1 Tags" value={crawledUrl.h1Count} />
+                  <InfoCard label="H2 Tags" value={crawledUrl.h2Count} />
+                  <InfoCard label="H3 Tags" value={crawledUrl.h3Count} />
+                  <InfoCard
+                    label="Internal Links"
+                    value={crawledUrl.internalLinks}
+                  />
+                  <InfoCard
+                    label="External Links"
+                    value={crawledUrl.externalLinks}
+                  />
+                  <InfoCard
+                    label="Broken Links"
+                    value={crawledUrl.brokenLinksCount}
+                  />
+                  <InfoCard label="Status" value={crawledUrl.status} />
+                  <InfoCard
+                    label="Created At"
+                    value={new Date(crawledUrl.createdAt).toLocaleString()}
+                  />
+                </div>
+                <div className="flex w-full justify-end">
+                  <Link
+                    to={`/urls/${crawledUrl.id}`}
+                    className="text-sm py-1.5 px-2 bg-primary text-white rounded-md "
+                  >
+                    See details
+                  </Link>
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Queued URLs */}
       <div className="mt-12 w-full max-w-3xl ">
@@ -125,9 +357,7 @@ export default function Crawl() {
                 Loading queued URLs...
               </p>
             ) : error ? (
-              <p className="px-4 py-6 text-sm text-rose-500">
-                Failed to fetch URLs.
-              </p>
+              <p className="px-4 py-6 text-sm text-neutral-500">{error}</p>
             ) : queuedUrls && queuedUrls.length > 0 ? (
               queuedUrls.map((item, index) => (
                 <li
@@ -135,7 +365,7 @@ export default function Crawl() {
                   className="flex justify-between items-center px-4 sm:px-6 py-4 border-b"
                 >
                   <div className="flex justify-center items-center gap-4 overflow-hidden">
-                    <span>
+                    <span onClick={() => handleDeleteUrl(item.id)}>
                       <FaMinus className="size-4 text-neutral-500 cursor-pointer hover:text-rose-500 transition duration-300" />
                     </span>
                     <span className="max-w-[160px] sm:max-w-xs truncate block">
