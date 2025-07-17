@@ -1,6 +1,11 @@
 import type { CrawlUrlBody } from '@/zodSchemas/schemas';
 import { API } from './axios';
 
+// fetch all urls
+export const getAllUrls = () => {
+  return API.get('/urls');
+};
+
 // fetch queued urls
 export const getQueuedUrls = () => {
   return API.get('/urls/queued');

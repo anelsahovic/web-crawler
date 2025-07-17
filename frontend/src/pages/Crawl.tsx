@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getErrorMessage } from '@/lib/utils';
+import { getErrorMessage, getUrlStatusColor } from '@/lib/utils';
 import {
   Dialog,
   DialogClose,
@@ -31,6 +31,7 @@ import {
 } from '@/components/ui/form';
 import InfoCard from '@/components/InfoCard';
 import LoaderBars from '@/components/LoaderBars';
+import { Badge } from '@/components/ui/badge';
 
 // const mockQueuedUrls = [
 //   {
@@ -372,9 +373,9 @@ export default function Crawl() {
                       {item.url}
                     </span>
                   </div>
-                  <span className="text-sm font-medium px-3 py-1 rounded-full bg-yellow-100 text-yellow-700">
+                  <Badge className={getUrlStatusColor(item.status)}>
                     {item.status}
-                  </span>
+                  </Badge>
                 </li>
               ))
             ) : (
