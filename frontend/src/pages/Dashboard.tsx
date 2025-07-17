@@ -34,6 +34,7 @@ import { toast } from 'sonner';
 import { getErrorMessage, getUrlStatusColor } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
+import { BrokenLinksChartPie } from '@/components/BrokenLinksChartPie';
 
 export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
@@ -47,7 +48,6 @@ export default function Dashboard() {
     const fetchAllUrls = async () => {
       try {
         setLoading(true);
-
         const response = await getAllUrls();
         if (response.status === 200) {
           setAllUrls(response.data);
@@ -74,6 +74,11 @@ export default function Dashboard() {
     setQueuedUrls(allUrls.filter((url) => url.status === 'QUEUED'));
     setErroredUrls(allUrls.filter((url) => url.status === 'ERROR'));
   }, [allUrls]);
+
+  // extract status codes from done urls
+  const statusCodes = doneUrls.flatMap(
+    (url) => url.brokenLinks?.map((link) => link.statusCode) || []
+  );
 
   return (
     <div className="min-h-screen flex flex-col w-full p-4 gap-4">
@@ -268,9 +273,16 @@ export default function Dashboard() {
         </div>
 
         {/* Charts */}
-        <div className=" md:col-span-1 bg-slate-100 border rounded-md shadow-md p-4 flex flex-col items-center justify-center">
-          <div>bar chart of status codes</div>{' '}
-          <div>most popular url/domain</div>
+        <div className=" md:col-span-1 h-full">
+          {loading ? (
+            <div className="w-full h-full flex justify-center items-center rounded-md shadow-md bg-slate-100">
+              <LuLoaderCircle className="animate-spin text-primary size-5" />
+            </div>
+          ) : (
+            <>
+              <BrokenLinksChartPie statusCodesArray={statusCodes} />
+            </>
+          )}
         </div>
       </div>
     </div>

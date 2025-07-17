@@ -8,7 +8,11 @@ import createHttpError from 'http-errors';
 const prisma = new PrismaClient();
 
 export async function getUrls() {
-  return await prisma.url.findMany();
+  return await prisma.url.findMany({
+    include: {
+      brokenLinks: true,
+    },
+  });
 }
 
 export async function getQueuedUrls() {
