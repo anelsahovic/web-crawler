@@ -19,7 +19,13 @@ import { MdMoreVert } from 'react-icons/md';
 import { CgMoreO } from 'react-icons/cg';
 import { IoMdRefresh } from 'react-icons/io';
 import { BiError } from 'react-icons/bi';
-import { FaCheckDouble, FaListOl, FaRegClock } from 'react-icons/fa';
+import {
+  FaCheckDouble,
+  FaListOl,
+  FaRegCheckSquare,
+  FaRegClock,
+  FaRegTrashAlt,
+} from 'react-icons/fa';
 import { LuLayoutDashboard, LuLoaderCircle } from 'react-icons/lu';
 import {
   DropdownMenu,
@@ -29,19 +35,23 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEffect, useState } from 'react';
 import type { Url } from '@/types';
-import { getAllUrls } from '@/api/urls';
+import { bulkDeleteUrls, getAllUrls } from '@/api/urls';
 import { toast } from 'sonner';
 import { getErrorMessage, getUrlStatusColor } from '@/lib/utils';
 import { format } from 'date-fns';
 import { Badge } from '@/components/ui/badge';
 import { BrokenLinksChartPie } from '@/components/BrokenLinksChartPie';
+import { Button } from '@/components/ui/button';
 
 export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
   const [doneUrls, setDoneUrls] = useState<Url[]>([]);
+  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [erroredUrls, setErroredUrls] = useState<Url[]>([]);
+  const [checkedAll, setCheckedAll] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [sendingRequest, setSendingRequest] = useState(false);
 
   // fetch all urls
   useEffect(() => {
@@ -74,6 +84,46 @@ export default function Dashboard() {
     setQueuedUrls(allUrls.filter((url) => url.status === 'QUEUED'));
     setErroredUrls(allUrls.filter((url) => url.status === 'ERROR'));
   }, [allUrls]);
+
+  // add/remove checked urls id from the array
+  const handleCheckboxChange = (id: string, checked: boolean) => {
+    setSelectedUrls((prev) =>
+      checked ? [...prev, id] : prev.filter((existingId) => existingId !== id)
+    );
+  };
+
+  // select-deselect all urls / add-remove from the array
+  const handleSelectAllUrls = () => {
+    const allIds = allUrls.map((url) => url.id);
+
+    if (!checkedAll) {
+      setSelectedUrls(allIds);
+      setCheckedAll(true);
+    } else {
+      setSelectedUrls([]);
+      setCheckedAll(false);
+    }
+  };
+
+  const handleDeleteSelectedUrls = async () => {
+    try {
+      setSendingRequest(true);
+      const response = await bulkDeleteUrls(selectedUrls);
+
+      if (response.status === 204) {
+        setAllUrls((prev) =>
+          prev.filter((url) => !selectedUrls.includes(url.id))
+        );
+        toast.success('Successfully deleted URLs');
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setSendingRequest(false);
+    }
+  };
 
   // extract status codes from done urls
   const statusCodes = doneUrls.flatMap(
@@ -170,17 +220,49 @@ export default function Dashboard() {
           {/* Select all, refresh, More options, Search and select */}
           <div className="flex items-end gap-4 mb-4">
             <div className="flex items-center gap-4 pl-3 text-neutral-600">
-              <Checkbox className="bg-white" />
+              <Checkbox
+                className="bg-white"
+                checked={checkedAll}
+                onCheckedChange={handleSelectAllUrls}
+              />
               <IoMdRefresh className="size-6" />
 
               <DropdownMenu>
                 <DropdownMenuTrigger className="cursor-pointer">
                   <CgMoreO className="size-5" />
                 </DropdownMenuTrigger>
-                <DropdownMenuContent>
-                  <DropdownMenuItem>Crawl queued</DropdownMenuItem>
-                  <DropdownMenuItem>Crawl selected</DropdownMenuItem>
-                  <DropdownMenuItem>Delete selected</DropdownMenuItem>
+                <DropdownMenuContent className="p-0">
+                  <DropdownMenuItem>
+                    <Button
+                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      variant={'ghost'}
+                      size={'default'}
+                    >
+                      <FaRegClock />
+                      Crawl Queued
+                    </Button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Button
+                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      variant={'ghost'}
+                      size={'default'}
+                    >
+                      <FaRegCheckSquare />
+                      Crawl Selected
+                    </Button>
+                  </DropdownMenuItem>
+                  <DropdownMenuItem>
+                    <Button
+                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      onClick={handleDeleteSelectedUrls}
+                      variant={'ghost'}
+                      size={'default'}
+                    >
+                      <FaRegTrashAlt />
+                      Delete Selected
+                    </Button>
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -212,6 +294,7 @@ export default function Dashboard() {
                 <LuLoaderCircle className="animate-spin text-primary size-5" />
               </div>
             )}
+
             <Table>
               <TableHeader>
                 <TableRow>
@@ -233,7 +316,12 @@ export default function Dashboard() {
                   allUrls.slice(0, 6).map((url) => (
                     <TableRow key={url.id}>
                       <TableCell className="font-medium">
-                        <Checkbox />
+                        <Checkbox
+                          checked={selectedUrls.includes(url.id)}
+                          onCheckedChange={(checked) =>
+                            handleCheckboxChange(url.id, !!checked)
+                          }
+                        />
                       </TableCell>
                       <TableCell className="font-medium">
                         <Badge className={getUrlStatusColor(url.status)}>

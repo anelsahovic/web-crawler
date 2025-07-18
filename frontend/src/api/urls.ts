@@ -25,3 +25,8 @@ export const crawlUrl = (values: CrawlUrlBody) => {
 export const deleteUrl = (urlId: string) => {
   return API.delete(`/urls/${urlId}`);
 };
+
+export const bulkDeleteUrls = (urlIds: string[]) => {
+  console.log('Url IDs frontend: ', urlIds);
+  return API.delete('/urls', { data: { urlIds } });
+};

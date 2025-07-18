@@ -4,6 +4,9 @@ export interface ShowUrlParams {
 export interface DeleteUrlParams {
   urlId: string;
 }
+export interface BulkDeleteUrlBody {
+  urlIds: string[];
+}
 
 export interface ReanalyzeUrlParams {
   urlId: string;

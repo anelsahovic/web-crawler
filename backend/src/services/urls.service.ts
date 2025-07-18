@@ -196,6 +196,15 @@ export async function deleteUrl(id: string) {
   }
 }
 
+export async function bulkDeleteUrls(ids: string[]) {
+  try {
+    await prisma.url.deleteMany({ where: { id: { in: ids } } });
+  } catch (error) {
+    console.error(error);
+    throw createHttpError(500, 'Something went wrong while deleting the urls.');
+  }
+}
+
 async function analyzeUrl(rawUrl: string) {
   const { data: html } = await axios.get(rawUrl, {
     timeout: 10000,

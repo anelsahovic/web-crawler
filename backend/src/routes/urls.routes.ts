@@ -30,4 +30,7 @@ router.put('/:urlId/reanalyze', UrlsController.reanalyze);
 // delete url from database
 router.delete('/:urlId', UrlsController.destroy);
 
+// bulk delete selected urls
+router.delete('/', UrlsController.destroyAll);
+
 export default router;

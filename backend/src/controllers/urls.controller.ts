@@ -2,6 +2,7 @@ import { RequestHandler } from 'express';
 import {
   addToTheQueue,
   analyzeAndSaveUrl,
+  bulkDeleteUrls,
   crawlQueuedUrls,
   deleteUrl,
   getQueuedUrls,
@@ -13,6 +14,7 @@ import createHttpError from 'http-errors';
 import { CrawlUrlBody, CrawlUrlSchema } from '../zodSchemas/urls.schemas';
 import z from 'zod';
 import {
+  BulkDeleteUrlBody,
   DeleteUrlParams,
   ReanalyzeUrlParams,
   ShowUrlParams,
@@ -170,6 +172,26 @@ export const destroy: RequestHandler<
     if (!urlId) throw createHttpError(400, 'Please provide url ID.');
 
     await deleteUrl(urlId);
+
+    res.sendStatus(204);
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+
+export const destroyAll: RequestHandler<
+  unknown,
+  unknown,
+  BulkDeleteUrlBody,
+  unknown
+> = async (req, res, next) => {
+  const { urlIds } = req.body;
+  try {
+    if (!urlIds || urlIds.length === 0)
+      throw createHttpError(400, 'Please provide url ID.');
+
+    await bulkDeleteUrls(urlIds);
 
     res.sendStatus(204);
   } catch (error) {
