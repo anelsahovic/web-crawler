@@ -8,6 +8,10 @@ export interface BulkDeleteUrlBody {
   urlIds: string[];
 }
 
+export interface CrawlSelectedUrlsBody {
+  urlIds: string[];
+}
+
 export interface ReanalyzeUrlParams {
   urlId: string;
 }

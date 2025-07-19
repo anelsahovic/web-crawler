@@ -4,6 +4,7 @@ import {
   analyzeAndSaveUrl,
   bulkDeleteUrls,
   crawlQueuedUrls,
+  crawlSelectedUrls,
   deleteUrl,
   getQueuedUrls,
   getUrlById,
@@ -15,6 +16,7 @@ import { CrawlUrlBody, CrawlUrlSchema } from '../zodSchemas/urls.schemas';
 import z from 'zod';
 import {
   BulkDeleteUrlBody,
+  CrawlSelectedUrlsBody,
   DeleteUrlParams,
   ReanalyzeUrlParams,
   ShowUrlParams,
@@ -129,7 +131,27 @@ export const queue: RequestHandler<
 
 export const crawlQueued: RequestHandler = async (req, res, next) => {
   try {
-    const result = await crawlQueuedUrls(); // one clear entry point
+    const result = await crawlQueuedUrls();
+
+    res.status(200).json({ message: 'Crawling completed.', result });
+  } catch (error) {
+    console.error(error);
+    next(error);
+  }
+};
+
+export const crawlSelected: RequestHandler<
+  unknown,
+  unknown,
+  CrawlSelectedUrlsBody,
+  unknown
+> = async (req, res, next) => {
+  const { urlIds } = req.body;
+  try {
+    if (!urlIds || urlIds.length === 0)
+      throw createHttpError(400, 'Please provide at least one URL ID.');
+
+    const result = await crawlSelectedUrls(urlIds);
 
     res.status(200).json({ message: 'Crawling completed.', result });
   } catch (error) {

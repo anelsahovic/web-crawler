@@ -24,6 +24,9 @@ router.post('/queue', UrlsController.queue);
 // start crawling the queued urls
 router.put('/crawl-queued', UrlsController.crawlQueued);
 
+// start crawling the selected urls
+router.put('/crawl-selected', UrlsController.crawlSelected);
+
 // recrawl and update the url
 router.put('/:urlId/reanalyze', UrlsController.reanalyze);
 

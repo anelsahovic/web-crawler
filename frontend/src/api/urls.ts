@@ -26,6 +26,11 @@ export const crawQueuedUrls = () => {
   return API.put('/urls/crawl-queued');
 };
 
+// crawl selected urls
+export const crawSelectedUrls = (urlIds: string[]) => {
+  return API.put('/urls/crawl-selected', { urlIds });
+};
+
 // delete url
 export const deleteUrl = (urlId: string) => {
   return API.delete(`/urls/${urlId}`);

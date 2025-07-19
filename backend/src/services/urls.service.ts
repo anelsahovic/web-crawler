@@ -5,8 +5,8 @@ import * as cheerio from 'cheerio';
 import { URL as NodeURL } from 'url';
 import createHttpError from 'http-errors';
 import { emitCrawlStatus } from '../socket';
-
-const prisma = new PrismaClient();
+import { compareAsc } from 'date-fns';
+export const prisma = new PrismaClient();
 
 export async function getUrls() {
   return await prisma.url.findMany({
@@ -46,61 +46,32 @@ export async function addToTheQueue(body: CrawlUrlBody) {
 }
 
 export async function crawlQueuedUrls() {
-  // get all urls with status queued or error sorted by created_at
+  const queuedUrls = await prisma.url.findMany({
+    where: { status: 'QUEUED' },
+  });
 
-  const queuedUrls = await getQueuedUrls();
-
-  if (!queuedUrls || queuedUrls.length === 0)
-    throw createHttpError(404, 'No queued urls available.');
-
-  const results: Url[] = [];
-
-  for (const queuedUrl of queuedUrls) {
-    try {
-      // update the status to running
-      await updateUrlStatus(queuedUrl.id, 'RUNNING');
-      emitCrawlStatus({ id: queuedUrl.id, status: 'RUNNING' });
-
-      //analyze the url and crawl the page
-      const crawled = await analyzeUrl(queuedUrl.url);
-
-      // Update with new data
-      const updated = await prisma.url.update({
-        where: { id: queuedUrl.id },
-        data: {
-          status: 'DONE',
-          id: queuedUrl.id,
-          url: queuedUrl.url,
-          htmlVersion: crawled.htmlVersion,
-          title: crawled.title,
-          h1Count: crawled.h1Count,
-          h2Count: crawled.h2Count,
-          h3Count: crawled.h3Count,
-          h4Count: crawled.h4Count,
-          h5Count: crawled.h5Count,
-          h6Count: crawled.h6Count,
-          internalLinks: crawled.internalLinks,
-          externalLinks: crawled.externalLinks,
-          brokenLinksCount: crawled.brokenLinks.length,
-          hasLoginForm: crawled.hasLoginForm,
-          brokenLinks: {
-            deleteMany: {}, // clear old
-            createMany: { data: crawled.brokenLinks },
-          },
-        },
-        include: { brokenLinks: true },
-      });
-
-      emitCrawlStatus({ id: queuedUrl.id, status: 'DONE' });
-
-      results.push(updated);
-    } catch (error) {
-      console.error(`Failed to crawl URL: ${queuedUrl.url}`, error);
-      await updateUrlStatus(queuedUrl.id, 'ERROR');
-      emitCrawlStatus({ id: queuedUrl.id, status: 'ERROR' });
-    }
+  if (!queuedUrls.length) {
+    throw createHttpError(404, 'No queued URLs found.');
   }
-  return results;
+
+  return bulkCrawlUrls(queuedUrls);
+}
+
+export async function crawlSelectedUrls(urlIds: string[]) {
+  const selectedUrls = await prisma.url.findMany({
+    where: { id: { in: urlIds } },
+  });
+
+  if (!selectedUrls.length) {
+    throw createHttpError(404, 'No selected URLs found.');
+  }
+
+  await prisma.url.updateMany({
+    where: { id: { in: urlIds } },
+    data: { status: 'QUEUED' },
+  });
+
+  return bulkCrawlUrls(selectedUrls);
 }
 
 export async function analyzeAndSaveUrl(body: CrawlUrlBody) {
@@ -298,4 +269,54 @@ async function updateUrlStatus(id: string, status: UrlStatus) {
       status,
     },
   });
+}
+
+export async function bulkCrawlUrls(urls: Url[]) {
+  const results: Url[] = [];
+
+  const sortedUrls = urls.sort((a, b) =>
+    compareAsc(new Date(a.createdAt), new Date(b.createdAt))
+  );
+
+  for (const url of sortedUrls) {
+    try {
+      await updateUrlStatus(url.id, 'RUNNING');
+      emitCrawlStatus({ id: url.id, status: 'RUNNING' });
+
+      const crawled = await analyzeUrl(url.url);
+
+      const updated = await prisma.url.update({
+        where: { id: url.id },
+        data: {
+          status: 'DONE',
+          htmlVersion: crawled.htmlVersion,
+          title: crawled.title,
+          h1Count: crawled.h1Count,
+          h2Count: crawled.h2Count,
+          h3Count: crawled.h3Count,
+          h4Count: crawled.h4Count,
+          h5Count: crawled.h5Count,
+          h6Count: crawled.h6Count,
+          internalLinks: crawled.internalLinks,
+          externalLinks: crawled.externalLinks,
+          brokenLinksCount: crawled.brokenLinks.length,
+          hasLoginForm: crawled.hasLoginForm,
+          brokenLinks: {
+            deleteMany: {},
+            createMany: { data: crawled.brokenLinks },
+          },
+        },
+        include: { brokenLinks: true },
+      });
+
+      emitCrawlStatus({ id: url.id, status: 'DONE' });
+      results.push(updated);
+    } catch (err) {
+      console.error(`Failed to crawl URL: ${url.url}`, err);
+      await updateUrlStatus(url.id, 'ERROR');
+      emitCrawlStatus({ id: url.id, status: 'ERROR' });
+    }
+  }
+
+  return results;
 }

@@ -35,7 +35,12 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEffect, useState } from 'react';
 import type { Url } from '@/types';
-import { bulkDeleteUrls, crawQueuedUrls, getAllUrls } from '@/api/urls';
+import {
+  bulkDeleteUrls,
+  crawQueuedUrls,
+  crawSelectedUrls,
+  getAllUrls,
+} from '@/api/urls';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
 import { compareAsc, format } from 'date-fns';
@@ -49,9 +54,10 @@ export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
   const [doneUrls, setDoneUrls] = useState<Url[]>([]);
-  const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [erroredUrls, setErroredUrls] = useState<Url[]>([]);
+  const [selectedUrls, setSelectedUrls] = useState<Url[]>([]);
   const [crawlingUrlsList, setCrawlingUrlsList] = useState<Url[]>([]);
+  const [selectedUrlsIds, setSelectedUrlsIds] = useState<string[]>([]);
   const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
   const [crawlingProgress, setCrawlingProgress] = useState(0);
@@ -115,10 +121,21 @@ export default function Dashboard() {
     setErroredUrls(allUrls.filter((url) => url.status === 'ERROR'));
   }, [allUrls]);
 
-  // add/remove checked urls id from the array
-  const handleCheckboxChange = (id: string, checked: boolean) => {
-    setSelectedUrls((prev) =>
+  // add/remove checked urls from the array
+  const handleCheckboxChange = (id: string, urlObj: Url, checked: boolean) => {
+    setSelectedUrlsIds((prev) =>
       checked ? [...prev, id] : prev.filter((existingId) => existingId !== id)
+    );
+
+    setSelectedUrls((prev) =>
+      checked ? [...prev, urlObj] : prev.filter((u) => u.id !== id)
+    );
+
+    setSelectedUrls((prev) =>
+      prev.map((url) => ({
+        ...url,
+        status: 'QUEUED',
+      }))
     );
   };
 
@@ -127,9 +144,11 @@ export default function Dashboard() {
     const allIds = allUrls.map((url) => url.id);
 
     if (!checkedAll) {
-      setSelectedUrls(allIds);
+      setSelectedUrlsIds(allIds);
+      setSelectedUrls(allUrls);
       setCheckedAll(true);
     } else {
+      setSelectedUrlsIds([]);
       setSelectedUrls([]);
       setCheckedAll(false);
     }
@@ -139,11 +158,11 @@ export default function Dashboard() {
   const handleDeleteSelectedUrls = async () => {
     try {
       setSendingRequest(true);
-      const response = await bulkDeleteUrls(selectedUrls);
+      const response = await bulkDeleteUrls(selectedUrlsIds);
 
       if (response.status === 204) {
         setAllUrls((prev) =>
-          prev.filter((url) => !selectedUrls.includes(url.id))
+          prev.filter((url) => !selectedUrlsIds.includes(url.id))
         );
         toast.success('Successfully deleted URLs');
       }
@@ -158,7 +177,6 @@ export default function Dashboard() {
 
   // bulk crawl all queued urls
   const handleCrawlQueuedUrls = async () => {
-    setRefresh((prev) => !prev);
     try {
       setSendingRequest(true);
       setCrawlingUrlsList(
@@ -181,6 +199,43 @@ export default function Dashboard() {
       setSendingRequest(false);
       setCrawlingUrlsList([]);
       setOpenCrawlingListDialog(false);
+      setCompletedCount(0);
+      setCrawlingProgress(0);
+      setRefresh((prev) => !prev);
+    }
+  };
+
+  // bulk crawl selected urls
+  const handleCrawlSelectedUrls = async () => {
+    setRefresh((prev) => !prev);
+
+    try {
+      setSendingRequest(true);
+
+      setCrawlingUrlsList(
+        [...selectedUrls].sort((a, b) =>
+          compareAsc(new Date(a.createdAt), new Date(b.createdAt))
+        )
+      );
+      setOpenCrawlingListDialog(true);
+
+      const response = await crawSelectedUrls(selectedUrlsIds);
+
+      if (response.status === 200) {
+        toast.success('Crawling of selected URLs completed');
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setSendingRequest(false);
+      setCrawlingUrlsList([]);
+      setSelectedUrlsIds([]);
+      setSelectedUrls([]);
+      setOpenCrawlingListDialog(false);
+      setCompletedCount(0);
+      setCrawlingProgress(0);
       setRefresh((prev) => !prev);
     }
   };
@@ -313,7 +368,8 @@ export default function Dashboard() {
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Button
-                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      onClick={handleCrawlSelectedUrls}
+                      disabled={selectedUrlsIds.length === 0 || sendingRequest}
                       variant={'ghost'}
                       size={'default'}
                     >
@@ -323,7 +379,7 @@ export default function Dashboard() {
                   </DropdownMenuItem>
                   <DropdownMenuItem>
                     <Button
-                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      disabled={selectedUrlsIds.length === 0 || sendingRequest}
                       onClick={handleDeleteSelectedUrls}
                       variant={'ghost'}
                       size={'default'}
@@ -344,13 +400,13 @@ export default function Dashboard() {
             <div className="flex flex-col justify-start gap-1">
               <p className="text-sm pl-1">Sort by</p>
               <Select>
-                <SelectTrigger className="w-[180px] bg-white">
-                  <SelectValue placeholder="Theme" />
+                <SelectTrigger className="w-[150px] bg-white">
+                  <SelectValue placeholder="Select" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="light">Light</SelectItem>
-                  <SelectItem value="dark">Dark</SelectItem>
-                  <SelectItem value="system">System</SelectItem>
+                  <SelectItem value="light">Created At</SelectItem>
+                  <SelectItem value="dark">Title</SelectItem>
+                  <SelectItem value="system">Status</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -386,9 +442,9 @@ export default function Dashboard() {
                     <TableRow key={url.id}>
                       <TableCell className="font-medium">
                         <Checkbox
-                          checked={selectedUrls.includes(url.id)}
+                          checked={selectedUrlsIds.includes(url.id)}
                           onCheckedChange={(checked) =>
-                            handleCheckboxChange(url.id, !!checked)
+                            handleCheckboxChange(url.id, url, !!checked)
                           }
                         />
                       </TableCell>
