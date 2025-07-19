@@ -1,4 +1,10 @@
-import { addUrlToQueue, crawlUrl, deleteUrl, getQueuedUrls } from '@/api/urls';
+import {
+  addUrlToQueue,
+  crawlUrl,
+  crawQueuedUrls,
+  deleteUrl,
+  getQueuedUrls,
+} from '@/api/urls';
 import { Button, buttonVariants } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import type { Url } from '@/types';
@@ -11,7 +17,7 @@ import { Link } from 'react-router-dom';
 import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { getErrorMessage, getUrlStatusColor } from '@/lib/utils';
+import { getErrorMessage } from '@/lib/utils';
 import {
   Dialog,
   DialogClose,
@@ -31,7 +37,10 @@ import {
 } from '@/components/ui/form';
 import InfoCard from '@/components/InfoCard';
 import LoaderBars from '@/components/LoaderBars';
-import { Badge } from '@/components/ui/badge';
+import StatusBadge from '@/components/StatusBadge';
+import { compareAsc } from 'date-fns';
+import CrawlProgressDialog from '@/components/CrawlProgressDialog';
+import { useCrawlUpdates } from '@/hooks/useCrawlUpdates';
 
 // const mockQueuedUrls = [
 //   {
@@ -54,9 +63,28 @@ export default function Crawl() {
   const [loading, setLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCrawling, setIsCrawling] = useState(false);
-  const [openDialog, setOpenDialog] = useState(false);
+  const [openCrawledUrlDialog, setOpenCrawledUrlDialog] = useState(false);
+  const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [crawlingProgress, setCrawlingProgress] = useState(0);
   const [error, setError] = useState('');
   const actionRef = useRef<'crawl' | 'queue' | null>(null);
+
+  // web socket listening for live status updates
+  useCrawlUpdates((data) => {
+    // update status progress
+    setQueuedUrls((prev) =>
+      prev.map((url) =>
+        url.id === data.id ? { ...url, status: data.status } : url
+      )
+    );
+
+    // update progress bar
+    if (data.status === 'DONE' || data.status === 'ERROR') {
+      setCompletedCount((prev) => prev + 1);
+    }
+    setCrawlingProgress((completedCount / queuedUrls.length) * 100);
+  });
 
   // fetch queued urls
   useEffect(() => {
@@ -114,6 +142,35 @@ export default function Crawl() {
     }
   };
 
+  // bulk crawl all queued urls
+  const handleCrawlQueuedUrls = async () => {
+    try {
+      setIsSubmitting(true);
+      setQueuedUrls((prev) =>
+        [...prev].sort((a, b) =>
+          compareAsc(new Date(a.createdAt), new Date(b.createdAt))
+        )
+      );
+      setOpenCrawlingListDialog(true);
+
+      const response = await crawQueuedUrls();
+
+      if (response.status === 200) {
+        toast.success('Crawling of queued urls complete');
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setIsSubmitting(false);
+      setQueuedUrls([]);
+      setCompletedCount(0);
+      setCrawlingProgress(0);
+      setOpenCrawlingListDialog(false);
+    }
+  };
+
   // form for crawling and adding url to the queue
   const form = useForm<CrawlUrlBody>({
     resolver: zodResolver(CrawlUrlSchema),
@@ -126,6 +183,7 @@ export default function Crawl() {
 
       // if Button 'Add to Queue' is clicked
       if (action === 'queue') {
+        setError('');
         const response = await addUrlToQueue(values);
         if (response.status === 201) {
           setQueuedUrls((prev) => [...prev, response.data.data]);
@@ -139,7 +197,7 @@ export default function Crawl() {
         setIsCrawling(true);
         const response = await crawlUrl(values);
         if (response.status === 201) {
-          setOpenDialog(true);
+          setOpenCrawledUrlDialog(true);
           toast.success('URL crawled successfully');
           setCrawledUrl(response.data);
         } else {
@@ -239,7 +297,7 @@ export default function Crawl() {
         </form>
       </Form>
 
-      {/* show loader for crawling */}
+      {/* show loader for immediate crawling */}
       {isCrawling && (
         <Dialog open={true}>
           <DialogTrigger asChild />
@@ -266,7 +324,10 @@ export default function Crawl() {
       )}
 
       {/* Show crawled data dialog */}
-      <Dialog open={openDialog} onOpenChange={setOpenDialog}>
+      <Dialog
+        open={openCrawledUrlDialog}
+        onOpenChange={setOpenCrawledUrlDialog}
+      >
         <DialogTrigger asChild />
         <DialogContent className="max-w-2xl">
           <DialogHeader>
@@ -345,12 +406,30 @@ export default function Crawl() {
         </DialogContent>
       </Dialog>
 
-      {/* Queued URLs */}
-      <div className="mt-12 w-full max-w-3xl ">
-        <h2 className="text-xl font-semibold mb-4 text-gray-800">
-          Queued URLs
-        </h2>
+      {/* Dialog that shows progress of the crawling */}
+      <CrawlProgressDialog
+        urls={queuedUrls}
+        open={openCrawlingListDialog}
+        onOpenChange={setOpenCrawlingListDialog}
+        progress={crawlingProgress}
+      />
 
+      {/* Queued URLs and Button to crawl list */}
+      <div className="mt-12 w-full max-w-3xl space-y-2 ">
+        {/* title and button */}
+        <div className="flex justify-between items-center">
+          <h2 className="text-xl font-semibold text-gray-800">Queued URLs</h2>
+          <Button
+            disabled={queuedUrls.length === 0 || isSubmitting}
+            onClick={handleCrawlQueuedUrls}
+            variant={'outline'}
+            className="cursor-pointer"
+          >
+            Start Crawling
+          </Button>
+        </div>
+
+        {/* list */}
         <div className="bg-white shadow-md rounded-xl overflow-y-auto max-h-[280px]">
           <ul>
             {loading ? (
@@ -373,9 +452,7 @@ export default function Crawl() {
                       {item.url}
                     </span>
                   </div>
-                  <Badge className={getUrlStatusColor(item.status)}>
-                    {item.status}
-                  </Badge>
+                  <StatusBadge size="md" status={item.status} />
                 </li>
               ))
             ) : (

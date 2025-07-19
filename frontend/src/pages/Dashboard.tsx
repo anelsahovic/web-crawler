@@ -35,13 +35,15 @@ import {
 } from '@/components/ui/dropdown-menu';
 import { useEffect, useState } from 'react';
 import type { Url } from '@/types';
-import { bulkDeleteUrls, getAllUrls } from '@/api/urls';
+import { bulkDeleteUrls, crawQueuedUrls, getAllUrls } from '@/api/urls';
 import { toast } from 'sonner';
-import { getErrorMessage, getUrlStatusColor } from '@/lib/utils';
-import { format } from 'date-fns';
-import { Badge } from '@/components/ui/badge';
+import { getErrorMessage } from '@/lib/utils';
+import { compareAsc, format } from 'date-fns';
 import { BrokenLinksChartPie } from '@/components/BrokenLinksChartPie';
 import { Button } from '@/components/ui/button';
+import { useCrawlUpdates } from '@/hooks/useCrawlUpdates';
+import StatusBadge from '@/components/StatusBadge';
+import CrawlProgressDialog from '@/components/CrawlProgressDialog';
 
 export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
@@ -49,9 +51,37 @@ export default function Dashboard() {
   const [doneUrls, setDoneUrls] = useState<Url[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<string[]>([]);
   const [erroredUrls, setErroredUrls] = useState<Url[]>([]);
+  const [crawlingUrlsList, setCrawlingUrlsList] = useState<Url[]>([]);
+  const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
+  const [completedCount, setCompletedCount] = useState(0);
+  const [crawlingProgress, setCrawlingProgress] = useState(0);
   const [checkedAll, setCheckedAll] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [refresh, setRefresh] = useState(false);
+
+  // web socket listening for live status updates
+  useCrawlUpdates((data) => {
+    // update status progress in table
+    setAllUrls((prev) =>
+      prev.map((url) =>
+        url.id === data.id ? { ...url, status: data.status } : url
+      )
+    );
+
+    // update status progress in crawled list dialog
+    setCrawlingUrlsList((prev) =>
+      prev.map((url) =>
+        url.id === data.id ? { ...url, status: data.status } : url
+      )
+    );
+
+    // update progress bar
+    if (data.status === 'DONE' || data.status === 'ERROR') {
+      setCompletedCount((prev) => prev + 1);
+    }
+    setCrawlingProgress((completedCount / crawlingUrlsList.length) * 100);
+  });
 
   // fetch all urls
   useEffect(() => {
@@ -74,7 +104,7 @@ export default function Dashboard() {
     };
 
     fetchAllUrls();
-  }, []);
+  }, [refresh]);
 
   // set done, queued, errored urls
   useEffect(() => {
@@ -105,6 +135,7 @@ export default function Dashboard() {
     }
   };
 
+  // bulk delete selected urls
   const handleDeleteSelectedUrls = async () => {
     try {
       setSendingRequest(true);
@@ -125,13 +156,43 @@ export default function Dashboard() {
     }
   };
 
-  // extract status codes from done urls
+  // bulk crawl all queued urls
+  const handleCrawlQueuedUrls = async () => {
+    setRefresh((prev) => !prev);
+    try {
+      setSendingRequest(true);
+      setCrawlingUrlsList(
+        [...queuedUrls].sort((a, b) =>
+          compareAsc(new Date(a.createdAt), new Date(b.createdAt))
+        )
+      );
+      setOpenCrawlingListDialog(true);
+
+      const response = await crawQueuedUrls();
+
+      if (response.status === 200) {
+        toast.success('Crawling of queued urls complete');
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setSendingRequest(false);
+      setCrawlingUrlsList([]);
+      setOpenCrawlingListDialog(false);
+      setRefresh((prev) => !prev);
+    }
+  };
+
+  // extract status codes from broken links in done urls
   const statusCodes = doneUrls.flatMap(
     (url) => url.brokenLinks?.map((link) => link.statusCode) || []
   );
 
   return (
     <div className="min-h-screen flex flex-col w-full p-4 gap-4">
+      {/* title */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-4">
         <div>
           <h1 className="text-3xl font-semibold flex items-center gap-2">
@@ -148,6 +209,7 @@ export default function Dashboard() {
 
       {/* Status Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 w-full">
+        {/* total urls card */}
         <div className="bg-sky-500 text-white rounded-md shadow-lg p-4 flex  items-end justify-between min-h-[110px]">
           <div className="flex flex-col">
             {loading ? (
@@ -164,6 +226,7 @@ export default function Dashboard() {
           <FaListOl className=" size-10" />
         </div>
 
+        {/* done urls card */}
         <div className="bg-green-500 text-white rounded-md shadow-lg p-4 flex  items-end justify-between min-h-[110px]">
           <div className="flex flex-col">
             {loading ? (
@@ -180,6 +243,7 @@ export default function Dashboard() {
           <FaCheckDouble className=" size-10" />
         </div>
 
+        {/* queued urls card */}
         <div className="bg-amber-500 text-white rounded-md shadow-lg p-4 flex  items-end justify-between min-h-[110px]">
           <div className="flex flex-col">
             {loading ? (
@@ -196,6 +260,7 @@ export default function Dashboard() {
           <FaRegClock className=" size-10" />
         </div>
 
+        {/* errored urls card */}
         <div className="bg-red-500 text-white rounded-md shadow-lg p-4 flex  items-end justify-between min-h-[110px]">
           <div className="flex flex-col">
             {loading ? (
@@ -219,22 +284,26 @@ export default function Dashboard() {
         <div className="md:col-span-2 bg-slate-100 rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0">
           {/* Select all, refresh, More options, Search and select */}
           <div className="flex items-end gap-4 mb-4">
-            <div className="flex items-center gap-4 pl-3 text-neutral-600">
+            <div className="flex items-center gap-4 pl-3 text-neutral-500">
               <Checkbox
                 className="bg-white"
                 checked={checkedAll}
                 onCheckedChange={handleSelectAllUrls}
               />
-              <IoMdRefresh className="size-6" />
+              <IoMdRefresh
+                onClick={() => setRefresh((prev) => !prev)}
+                className="size-6 cursor-pointer hover:text-neutral-900 transition-all duration-300"
+              />
 
               <DropdownMenu>
                 <DropdownMenuTrigger className="cursor-pointer">
-                  <CgMoreO className="size-5" />
+                  <CgMoreO className="size-5 hover:text-neutral-900 transition-all duration-300" />
                 </DropdownMenuTrigger>
                 <DropdownMenuContent className="p-0">
                   <DropdownMenuItem>
                     <Button
-                      disabled={selectedUrls.length === 0 || sendingRequest}
+                      onClick={handleCrawlQueuedUrls}
+                      disabled={queuedUrls.length === 0 || sendingRequest}
                       variant={'ghost'}
                       size={'default'}
                     >
@@ -324,9 +393,7 @@ export default function Dashboard() {
                         />
                       </TableCell>
                       <TableCell className="font-medium">
-                        <Badge className={getUrlStatusColor(url.status)}>
-                          {url.status}
-                        </Badge>
+                        <StatusBadge status={url.status} />
                       </TableCell>
                       <TableCell className="max-w-[160px] truncate">
                         {url.title ? url.title : 'N/A'}
@@ -373,6 +440,14 @@ export default function Dashboard() {
           )}
         </div>
       </div>
+
+      {/* Dialog that shows progress of the crawling */}
+      <CrawlProgressDialog
+        urls={crawlingUrlsList}
+        open={openCrawlingListDialog}
+        onOpenChange={setOpenCrawlingListDialog}
+        progress={crawlingProgress}
+      />
     </div>
   );
 }

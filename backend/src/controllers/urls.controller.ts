@@ -39,7 +39,7 @@ export const getQueued: RequestHandler = async (req, res, next) => {
     const urls = await getQueuedUrls();
 
     if (!urls || !urls.length) {
-      throw createHttpError(404, 'No urls found.');
+      throw createHttpError(404, 'No queued urls found.');
     }
 
     res.status(200).json(urls);

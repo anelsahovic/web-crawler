@@ -4,6 +4,7 @@ import axios from 'axios';
 import * as cheerio from 'cheerio';
 import { URL as NodeURL } from 'url';
 import createHttpError from 'http-errors';
+import { emitCrawlStatus } from '../socket';
 
 const prisma = new PrismaClient();
 
@@ -58,6 +59,7 @@ export async function crawlQueuedUrls() {
     try {
       // update the status to running
       await updateUrlStatus(queuedUrl.id, 'RUNNING');
+      emitCrawlStatus({ id: queuedUrl.id, status: 'RUNNING' });
 
       //analyze the url and crawl the page
       const crawled = await analyzeUrl(queuedUrl.url);
@@ -89,10 +91,13 @@ export async function crawlQueuedUrls() {
         include: { brokenLinks: true },
       });
 
+      emitCrawlStatus({ id: queuedUrl.id, status: 'DONE' });
+
       results.push(updated);
     } catch (error) {
       console.error(`Failed to crawl URL: ${queuedUrl.url}`, error);
       await updateUrlStatus(queuedUrl.id, 'ERROR');
+      emitCrawlStatus({ id: queuedUrl.id, status: 'ERROR' });
     }
   }
   return results;

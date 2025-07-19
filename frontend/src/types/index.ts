@@ -22,3 +22,8 @@ export interface Url {
   createdAt: string;
   brokenLinks: BrokenLink[];
 }
+
+export interface CrawlStatusUpdate {
+  id: string;
+  status: UrlStatus;
+}
