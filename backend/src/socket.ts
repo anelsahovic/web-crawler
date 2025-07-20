@@ -1,3 +1,4 @@
+import { Url, UrlStatus } from '@prisma/client';
 import { Server } from 'socket.io';
 
 let io: Server;
@@ -16,7 +17,8 @@ export const setupSocketIO = (ioInstance: Server) => {
 
 export const emitCrawlStatus = (data: {
   id: string;
-  status: 'QUEUED' | 'RUNNING' | 'DONE' | 'ERROR';
+  status: UrlStatus;
+  url?: Url;
 }) => {
   if (!io) return;
   io.emit('urlStatusUpdate', data); // All clients will receive

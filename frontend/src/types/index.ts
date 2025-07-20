@@ -26,4 +26,5 @@ export interface Url {
 export interface CrawlStatusUpdate {
   id: string;
   status: UrlStatus;
+  url: Url;
 }

@@ -82,6 +82,19 @@ export default function Dashboard() {
       )
     );
 
+    // update all urls data in table if done
+    if (data.status === 'DONE') {
+      setAllUrls((prev) => {
+        const exists = prev.some((url) => url.id === data.url.id);
+
+        if (exists) {
+          return prev.map((url) => (url.id === data.url.id ? data.url : url));
+        } else {
+          return [...prev, data.url];
+        }
+      });
+    }
+
     // update progress bar
     if (data.status === 'DONE' || data.status === 'ERROR') {
       setCompletedCount((prev) => prev + 1);
@@ -201,14 +214,11 @@ export default function Dashboard() {
       setOpenCrawlingListDialog(false);
       setCompletedCount(0);
       setCrawlingProgress(0);
-      setRefresh((prev) => !prev);
     }
   };
 
   // bulk crawl selected urls
   const handleCrawlSelectedUrls = async () => {
-    setRefresh((prev) => !prev);
-
     try {
       setSendingRequest(true);
 
@@ -236,7 +246,6 @@ export default function Dashboard() {
       setOpenCrawlingListDialog(false);
       setCompletedCount(0);
       setCrawlingProgress(0);
-      setRefresh((prev) => !prev);
     }
   };
 

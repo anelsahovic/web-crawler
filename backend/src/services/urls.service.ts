@@ -309,7 +309,7 @@ export async function bulkCrawlUrls(urls: Url[]) {
         include: { brokenLinks: true },
       });
 
-      emitCrawlStatus({ id: url.id, status: 'DONE' });
+      emitCrawlStatus({ id: url.id, status: 'DONE', url: updated });
       results.push(updated);
     } catch (err) {
       console.error(`Failed to crawl URL: ${url.url}`, err);
