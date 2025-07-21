@@ -15,7 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MdMoreVert } from 'react-icons/md';
+import { MdFindInPage, MdMoreVert } from 'react-icons/md';
 import { CgMoreO } from 'react-icons/cg';
 import { IoMdRefresh } from 'react-icons/io';
 import { BiError } from 'react-icons/bi';
@@ -39,16 +39,23 @@ import {
   bulkDeleteUrls,
   crawQueuedUrls,
   crawSelectedUrls,
+  deleteUrl,
   getAllUrls,
+  reanalyzeUrl,
 } from '@/api/urls';
 import { toast } from 'sonner';
 import { getErrorMessage } from '@/lib/utils';
 import { compareAsc, format } from 'date-fns';
 import { BrokenLinksChartPie } from '@/components/BrokenLinksChartPie';
-import { Button } from '@/components/ui/button';
+import { Button, buttonVariants } from '@/components/ui/button';
 import { useCrawlUpdates } from '@/hooks/useCrawlUpdates';
 import StatusBadge from '@/components/StatusBadge';
 import CrawlProgressDialog from '@/components/CrawlProgressDialog';
+import { FaRepeat } from 'react-icons/fa6';
+import { Link } from 'react-router-dom';
+import { twMerge } from 'tailwind-merge';
+import CrawlingLoader from '@/components/CrawlingLoader';
+import CrawledDataDialog from '@/components/CrawledDataDialog';
 
 export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
@@ -57,6 +64,7 @@ export default function Dashboard() {
   const [erroredUrls, setErroredUrls] = useState<Url[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<Url[]>([]);
   const [crawlingUrlsList, setCrawlingUrlsList] = useState<Url[]>([]);
+  const [reanalyzedUrl, setReanalyzedUrl] = useState<Url>();
   const [selectedUrlsIds, setSelectedUrlsIds] = useState<string[]>([]);
   const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
@@ -64,6 +72,8 @@ export default function Dashboard() {
   const [checkedAll, setCheckedAll] = useState(false);
   const [loading, setLoading] = useState(false);
   const [sendingRequest, setSendingRequest] = useState(false);
+  const [reanalyzing, setReanalyzing] = useState(false);
+  const [openReanalyzedUrlDialog, setOpenReanalyzedUrlDialog] = useState(false);
   const [refresh, setRefresh] = useState(false);
 
   // web socket listening for live status updates
@@ -246,6 +256,55 @@ export default function Dashboard() {
       setOpenCrawlingListDialog(false);
       setCompletedCount(0);
       setCrawlingProgress(0);
+    }
+  };
+
+  // recrawl/reanalyze single url
+  const handleReanalyzeUrl = async (id: string) => {
+    try {
+      setSendingRequest(true);
+      setReanalyzing(true);
+      setAllUrls((prev) =>
+        prev.map((url) => (url.id === id ? { ...url, status: 'RUNNING' } : url))
+      );
+
+      const response = await reanalyzeUrl(id);
+
+      if (response.status === 200) {
+        toast.success('Url reanalyzed successfully');
+        setOpenReanalyzedUrlDialog(true);
+        setReanalyzedUrl(response.data);
+        setAllUrls((prev) =>
+          prev.map((url) => (url.id === response.data.id ? response.data : url))
+        );
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setSendingRequest(false);
+      setReanalyzing(false);
+    }
+  };
+
+  // delete single url
+  const handleDeleteUrl = async (id: string) => {
+    try {
+      setSendingRequest(true);
+
+      const response = await deleteUrl(id);
+
+      if (response.status === 204) {
+        toast.success('Url deleted successfully');
+        setAllUrls((prev) => prev.filter((url) => url.id !== id));
+      }
+    } catch (error) {
+      console.error(error);
+      const errorMessage = getErrorMessage(error as Error);
+      toast.error(errorMessage);
+    } finally {
+      setSendingRequest(false);
     }
   };
 
@@ -472,10 +531,44 @@ export default function Dashboard() {
                           <DropdownMenuTrigger className="cursor-pointer">
                             <MdMoreVert className="size-5" />
                           </DropdownMenuTrigger>
-                          <DropdownMenuContent>
-                            <DropdownMenuItem>Show details</DropdownMenuItem>
-                            <DropdownMenuItem>Reanalyze</DropdownMenuItem>
-                            <DropdownMenuItem>Delete</DropdownMenuItem>
+                          <DropdownMenuContent className="p-0">
+                            <DropdownMenuItem>
+                              <Link
+                                to={`/urls/${url.id}`}
+                                className={twMerge(
+                                  buttonVariants({
+                                    variant: 'ghost',
+                                    size: 'default',
+                                  }),
+                                  'w-full h-full m-0'
+                                )}
+                              >
+                                <MdFindInPage />
+                                Show Details
+                              </Link>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Button
+                                onClick={() => handleReanalyzeUrl(url.id)}
+                                disabled={sendingRequest}
+                                variant={'ghost'}
+                                size={'default'}
+                              >
+                                <FaRepeat />
+                                Reanalyze
+                              </Button>
+                            </DropdownMenuItem>
+                            <DropdownMenuItem>
+                              <Button
+                                onClick={() => handleDeleteUrl(url.id)}
+                                disabled={sendingRequest}
+                                variant={'ghost'}
+                                size={'default'}
+                              >
+                                <FaRegTrashAlt />
+                                Delete
+                              </Button>
+                            </DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
                       </TableCell>
@@ -512,6 +605,17 @@ export default function Dashboard() {
         open={openCrawlingListDialog}
         onOpenChange={setOpenCrawlingListDialog}
         progress={crawlingProgress}
+      />
+
+      {/* show loader for reanalyze url / crawling */}
+      <CrawlingLoader open={reanalyzing} />
+
+      {/* Show crawled data dialog */}
+      <CrawledDataDialog
+        url={reanalyzedUrl}
+        open={openReanalyzedUrlDialog}
+        onOpenChange={setOpenReanalyzedUrlDialog}
+        loading={reanalyzing}
       />
     </div>
   );

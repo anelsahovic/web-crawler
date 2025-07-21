@@ -31,6 +31,11 @@ export const crawSelectedUrls = (urlIds: string[]) => {
   return API.put('/urls/crawl-selected', { urlIds });
 };
 
+// reanalyze url
+export const reanalyzeUrl = (urlId: string) => {
+  return API.put(`/urls/${urlId}/reanalyze`);
+};
+
 // delete url
 export const deleteUrl = (urlId: string) => {
   return API.delete(`/urls/${urlId}`);

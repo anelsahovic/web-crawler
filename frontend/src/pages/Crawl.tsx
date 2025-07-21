@@ -18,15 +18,7 @@ import { toast } from 'sonner';
 import { twMerge } from 'tailwind-merge';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { getErrorMessage } from '@/lib/utils';
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-  DialogTrigger,
-} from '@/components/ui/dialog';
+
 import {
   Form,
   FormControl,
@@ -35,12 +27,12 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-import InfoCard from '@/components/InfoCard';
-import LoaderBars from '@/components/LoaderBars';
 import StatusBadge from '@/components/StatusBadge';
 import { compareAsc } from 'date-fns';
 import CrawlProgressDialog from '@/components/CrawlProgressDialog';
 import { useCrawlUpdates } from '@/hooks/useCrawlUpdates';
+import CrawlingLoader from '@/components/CrawlingLoader';
+import CrawledDataDialog from '@/components/CrawledDataDialog';
 
 // const mockQueuedUrls = [
 //   {
@@ -298,113 +290,15 @@ export default function Crawl() {
       </Form>
 
       {/* show loader for immediate crawling */}
-      {isCrawling && (
-        <Dialog open={true}>
-          <DialogTrigger asChild />
-          <DialogClose disabled asChild className="hidden"></DialogClose>
-          <DialogContent
-            onInteractOutside={(e) => e.preventDefault()}
-            onEscapeKeyDown={(e) => e.preventDefault()}
-            className="[&>button]:hidden"
-          >
-            <DialogHeader className="text-center w-full">
-              <DialogTitle className="text-2xl text-center">
-                Crawling your URL
-              </DialogTitle>
-              <DialogDescription></DialogDescription>
-            </DialogHeader>
-            <div className="flex flex-col justify-center items-center gap-7  pt-5 pb-10">
-              <LoaderBars />
-              <p className="text-sm text-neutral-500">
-                Please wait this might take a while...
-              </p>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
+      <CrawlingLoader open={isCrawling} />
 
       {/* Show crawled data dialog */}
-      <Dialog
+      <CrawledDataDialog
+        url={crawledUrl}
         open={openCrawledUrlDialog}
         onOpenChange={setOpenCrawledUrlDialog}
-      >
-        <DialogTrigger asChild />
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle className="text-2xl font-bold">
-              Crawled URL Summary
-            </DialogTitle>
-            <DialogDescription>
-              The following data was extracted from the provided URL.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="mt-4 space-y-4">
-            {!isSubmitting && !isCrawling && !crawledUrl && (
-              <p className="text-sm text-muted-foreground">
-                No URL data available.
-              </p>
-            )}
-
-            {!isSubmitting && !isCrawling && crawledUrl && (
-              <div className="space-y-4">
-                <div className="border rounded-xl p-4 shadow-sm bg-muted/50">
-                  {/* title */}
-                  <h2 className="text-lg font-semibold text-primary mb-1">
-                    {crawledUrl.title}
-                  </h2>
-                  {/* url */}
-                  <a
-                    href={crawledUrl.url}
-                    className="text-sm text-muted-foreground hover:text-primary"
-                  >
-                    {crawledUrl.url}
-                  </a>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4">
-                  <InfoCard
-                    label="HTML Version"
-                    value={crawledUrl.htmlVersion}
-                  />
-                  <InfoCard
-                    label="Login Form"
-                    value={crawledUrl.hasLoginForm ? 'Yes' : 'No'}
-                  />
-                  <InfoCard label="H1 Tags" value={crawledUrl.h1Count} />
-                  <InfoCard label="H2 Tags" value={crawledUrl.h2Count} />
-                  <InfoCard label="H3 Tags" value={crawledUrl.h3Count} />
-                  <InfoCard
-                    label="Internal Links"
-                    value={crawledUrl.internalLinks}
-                  />
-                  <InfoCard
-                    label="External Links"
-                    value={crawledUrl.externalLinks}
-                  />
-                  <InfoCard
-                    label="Broken Links"
-                    value={crawledUrl.brokenLinksCount}
-                  />
-                  <InfoCard label="Status" value={crawledUrl.status} />
-                  <InfoCard
-                    label="Created At"
-                    value={new Date(crawledUrl.createdAt).toLocaleString()}
-                  />
-                </div>
-                <div className="flex w-full justify-end">
-                  <Link
-                    to={`/urls/${crawledUrl.id}`}
-                    className="text-sm py-1.5 px-2 bg-primary text-white rounded-md "
-                  >
-                    See details
-                  </Link>
-                </div>
-              </div>
-            )}
-          </div>
-        </DialogContent>
-      </Dialog>
+        loading={isCrawling}
+      />
 
       {/* Dialog that shows progress of the crawling */}
       <CrawlProgressDialog
