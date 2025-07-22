@@ -24,10 +24,13 @@ import {
 } from '../types/index.types';
 
 export const index: RequestHandler = async (req, res, next) => {
+  const page = parseInt(req.query.page as string) || 1;
+  const limit = parseInt(req.query.limit as string) || 6;
+  const skip = (page - 1) * limit;
   try {
-    const urls = await getUrls();
+    const urls = await getUrls(limit, skip, page);
 
-    if (!urls || !urls.length) {
+    if (!urls) {
       throw createHttpError(404, 'No urls found.');
     }
 

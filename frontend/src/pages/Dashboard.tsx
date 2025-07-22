@@ -15,8 +15,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { MdFindInPage, MdMoreVert } from 'react-icons/md';
-import { CgMoreO } from 'react-icons/cg';
+import { MdFindInPage, MdMoreVert, MdOutlineMoreHoriz } from 'react-icons/md';
 import { IoMdRefresh } from 'react-icons/io';
 import { BiError } from 'react-icons/bi';
 import {
@@ -54,12 +53,24 @@ import { useCrawlUpdates } from '@/hooks/useCrawlUpdates';
 import StatusBadge from '@/components/StatusBadge';
 import CrawlProgressDialog from '@/components/CrawlProgressDialog';
 import { FaRepeat } from 'react-icons/fa6';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import { twMerge } from 'tailwind-merge';
 import CrawlingLoader from '@/components/CrawlingLoader';
 import CrawledDataDialog from '@/components/CrawledDataDialog';
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationLink,
+  PaginationNext,
+  PaginationPrevious,
+} from '@/components/ui/pagination';
 
 export default function Dashboard() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const currentPage = parseInt(searchParams.get('page') || '1');
+  const limit = parseInt(searchParams.get('limit') || '6');
+
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<Url[]>([]);
@@ -72,6 +83,8 @@ export default function Dashboard() {
     error: 0,
     statusCodes: [],
   });
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalUrls, setTotalUrls] = useState(0);
   const [selectedUrlsIds, setSelectedUrlsIds] = useState<string[]>([]);
   const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
@@ -83,50 +96,16 @@ export default function Dashboard() {
   const [openReanalyzedUrlDialog, setOpenReanalyzedUrlDialog] = useState(false);
   const [refresh, setRefresh] = useState(false);
 
-  // web socket listening for live status updates
-  useCrawlUpdates((data) => {
-    // update status progress in table
-    setAllUrls((prev) =>
-      prev.map((url) =>
-        url.id === data.id ? { ...url, status: data.status } : url
-      )
-    );
-
-    // update status progress in crawled list dialog
-    setCrawlingUrlsList((prev) =>
-      prev.map((url) =>
-        url.id === data.id ? { ...url, status: data.status } : url
-      )
-    );
-
-    // update all urls data in table if done
-    if (data.status === 'DONE') {
-      setAllUrls((prev) => {
-        const exists = prev.some((url) => url.id === data.url.id);
-
-        if (exists) {
-          return prev.map((url) => (url.id === data.url.id ? data.url : url));
-        } else {
-          return [...prev, data.url];
-        }
-      });
-    }
-
-    // update progress bar
-    if (data.status === 'DONE' || data.status === 'ERROR') {
-      setCompletedCount((prev) => prev + 1);
-    }
-    setCrawlingProgress((completedCount / crawlingUrlsList.length) * 100);
-  });
-
-  // fetch paginated urls , queued urls and stats
+  // fetch paginated urls
   useEffect(() => {
     const fetchAllUrls = async () => {
       try {
         setLoading(true);
-        const response = await getAllUrls();
+        const response = await getAllUrls(currentPage, limit);
         if (response.status === 200) {
-          setAllUrls(response.data);
+          setAllUrls(response.data.urls);
+          setTotalPages(response.data.totalPages);
+          setTotalUrls(response.data.totalUrls);
         } else {
           toast.error('Error fetching URLs');
         }
@@ -139,6 +118,11 @@ export default function Dashboard() {
       }
     };
 
+    fetchAllUrls();
+  }, [currentPage, limit, refresh]);
+
+  // fetch  queued urls and stats
+  useEffect(() => {
     const fetchUrlsStats = async () => {
       try {
         setLoading(true);
@@ -177,8 +161,43 @@ export default function Dashboard() {
 
     fetchUrlsStats();
     fetchQueuedUrls();
-    fetchAllUrls();
   }, [refresh]);
+
+  // web socket listening for live status updates
+  useCrawlUpdates((data) => {
+    // update status progress in table
+    setAllUrls((prev) =>
+      prev.map((url) =>
+        url.id === data.id ? { ...url, status: data.status } : url
+      )
+    );
+
+    // update status progress in crawled list dialog
+    setCrawlingUrlsList((prev) =>
+      prev.map((url) =>
+        url.id === data.id ? { ...url, status: data.status } : url
+      )
+    );
+
+    // update all urls data in table if done
+    if (data.status === 'DONE') {
+      setAllUrls((prev) => {
+        const exists = prev.some((url) => url.id === data.url.id);
+
+        if (exists) {
+          return prev.map((url) => (url.id === data.url.id ? data.url : url));
+        } else {
+          return [...prev, data.url];
+        }
+      });
+    }
+
+    // update progress bar
+    if (data.status === 'DONE' || data.status === 'ERROR') {
+      setCompletedCount((prev) => prev + 1);
+    }
+    setCrawlingProgress((completedCount / crawlingUrlsList.length) * 100);
+  });
 
   // add/remove checked urls from the array
   const handleCheckboxChange = (id: string, urlObj: Url, checked: boolean) => {
@@ -340,6 +359,31 @@ export default function Dashboard() {
     }
   };
 
+  // when the user clicks on a pagination link
+  const handlePageChange = (page: number) => {
+    setSearchParams({ page: page.toString(), limit: limit.toString() });
+  };
+
+  const handlePerPageChange = (perPage: string) => {
+    setSearchParams({ page: currentPage.toString(), limit: perPage });
+  };
+
+  // Determine start and end pages to always show 3 buttons when possible
+  let startPage = Math.max(1, currentPage - 1);
+  let endPage = Math.min(totalPages, currentPage + 1);
+
+  // Adjust if we're at the start or end to keep 3 buttons
+  if (currentPage === 1) {
+    endPage = Math.min(totalPages, 3);
+  } else if (currentPage === totalPages && totalPages >= 3) {
+    startPage = totalPages - 2;
+  }
+  // Build the page number array
+  const pageNumbers = [];
+  for (let i = startPage; i <= endPage; i++) {
+    pageNumbers.push(i);
+  }
+
   return (
     <div className="min-h-screen flex flex-col w-full p-4 gap-4">
       {/* title */}
@@ -433,77 +477,109 @@ export default function Dashboard() {
         {/* Table */}
         <div className="md:col-span-2 bg-white rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0">
           {/* Select all, refresh, More options, Search and select */}
-          <div className="flex items-end gap-4 mb-4">
-            <div className="flex items-center gap-4 pl-3 text-neutral-500">
-              <Checkbox
-                className="border-neutral-300 shadow"
-                checked={checkedAll}
-                onCheckedChange={handleSelectAllUrls}
-              />
-              <IoMdRefresh
-                onClick={() => setRefresh((prev) => !prev)}
-                className="size-6 cursor-pointer hover:text-neutral-900 transition-all duration-300"
-              />
-
-              <DropdownMenu>
-                <DropdownMenuTrigger className="cursor-pointer">
-                  <CgMoreO className="size-5 hover:text-neutral-900 transition-all duration-300" />
-                </DropdownMenuTrigger>
-                <DropdownMenuContent className="p-0">
-                  <DropdownMenuItem>
-                    <Button
-                      onClick={handleCrawlQueuedUrls}
-                      disabled={queuedUrls.length === 0 || sendingRequest}
-                      variant={'ghost'}
-                      size={'default'}
-                    >
-                      <FaRegClock />
-                      Crawl Queued
-                    </Button>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Button
-                      onClick={handleCrawlSelectedUrls}
-                      disabled={selectedUrlsIds.length === 0 || sendingRequest}
-                      variant={'ghost'}
-                      size={'default'}
-                    >
-                      <FaRegCheckSquare />
-                      Crawl Selected
-                    </Button>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem>
-                    <Button
-                      disabled={selectedUrlsIds.length === 0 || sendingRequest}
-                      onClick={handleDeleteSelectedUrls}
-                      variant={'ghost'}
-                      size={'default'}
-                    >
-                      <FaRegTrashAlt />
-                      Delete Selected
-                    </Button>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+          <div className="flex flex-col sm:flex-row items-end gap-4 mb-4 w-full">
+            <div className="flex justify-center items-end gap-4 w-full">
+              {/* search */}
+              <div className="flex flex-col justify-start gap-1 w-full">
+                <p className="text-sm pl-1">Search urls</p>
+                <Input
+                  type="text"
+                  className="bg-white"
+                  placeholder="Search..."
+                />
+              </div>
             </div>
 
-            <div className="flex flex-col justify-start gap-1 w-full">
-              <p className="text-sm pl-1">Search urls</p>
-              <Input type="text" className="bg-white" placeholder="Search..." />
-            </div>
+            <div className="flex sm:flex-row-reverse justify-center items-end gap-4 w-full">
+              {/*more options */}
+              <div className="flex items-center gap-4 text-neutral-500">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    className={twMerge(
+                      buttonVariants({ variant: 'outline' }),
+                      'cursor-pointer'
+                    )}
+                  >
+                    <MdOutlineMoreHoriz className="size-5" />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent className="p-0">
+                    <DropdownMenuItem>
+                      <span
+                        onClick={() => setRefresh((prev) => !prev)}
+                        className={buttonVariants({
+                          variant: 'ghost',
+                          size: 'default',
+                        })}
+                      >
+                        <IoMdRefresh className="size-5" />
+                        Refresh
+                      </span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Button
+                        onClick={handleCrawlQueuedUrls}
+                        disabled={queuedUrls.length === 0 || sendingRequest}
+                        variant={'ghost'}
+                        size={'default'}
+                      >
+                        <FaRegClock />
+                        Crawl Queued
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Button
+                        onClick={handleCrawlSelectedUrls}
+                        disabled={
+                          selectedUrlsIds.length === 0 || sendingRequest
+                        }
+                        variant={'ghost'}
+                        size={'default'}
+                      >
+                        <FaRegCheckSquare />
+                        Crawl Selected
+                      </Button>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem>
+                      <Button
+                        disabled={
+                          selectedUrlsIds.length === 0 || sendingRequest
+                        }
+                        onClick={handleDeleteSelectedUrls}
+                        variant={'ghost'}
+                        size={'default'}
+                      >
+                        <FaRegTrashAlt />
+                        Delete Selected
+                      </Button>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              </div>
 
-            <div className="flex flex-col justify-start gap-1">
-              <p className="text-sm pl-1">Sort by</p>
-              <Select>
-                <SelectTrigger className="w-[150px] bg-white">
-                  <SelectValue placeholder="Select" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="light">Created At</SelectItem>
-                  <SelectItem value="dark">Title</SelectItem>
-                  <SelectItem value="system">Status</SelectItem>
-                </SelectContent>
-              </Select>
+              {/* sorting */}
+              <div className="flex flex-col justify-start gap-1">
+                <p className="text-sm pl-1">Sort by</p>
+                <Select>
+                  <SelectTrigger className="max-w-[250px] bg-white">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="light">Created At</SelectItem>
+                    <SelectItem value="dark">Title</SelectItem>
+                    <SelectItem value="system">Status</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* new url link */}
+              <div>
+                <Link
+                  className={buttonVariants({ variant: 'default' })}
+                  to="/crawl"
+                >
+                  Add New URL
+                </Link>
+              </div>
             </div>
           </div>
 
@@ -515,10 +591,17 @@ export default function Dashboard() {
               </div>
             )}
 
-            <Table>
+            <Table className="overflow-y-scroll h-48">
               <TableHeader>
                 <TableRow className="bg-primary/20 hover:bg-primary/20">
-                  <TableHead className=""></TableHead>
+                  <TableHead className="">
+                    {' '}
+                    <Checkbox
+                      className="bg-white border-neutral-300 shadow"
+                      checked={checkedAll}
+                      onCheckedChange={handleSelectAllUrls}
+                    />
+                  </TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead>Title</TableHead>
                   <TableHead>URL</TableHead>
@@ -533,7 +616,7 @@ export default function Dashboard() {
                 {!loading &&
                   allUrls &&
                   allUrls.length > 0 &&
-                  allUrls.slice(0, 6).map((url) => (
+                  allUrls.map((url) => (
                     <TableRow key={url.id}>
                       <TableCell className="font-medium">
                         <Checkbox
@@ -605,10 +688,80 @@ export default function Dashboard() {
               </TableBody>
             </Table>
           </div>
-          {/* Pagination */}
-          <div className="flex justify-center items-center w-full p-2">
-            <div className="size-8 rounded-md bg-primary p-1 text-sm text-white flex justify-center items-center">
-              1
+          {/* Pagination footer */}
+          <div className="flex flex-col sm:flex-row gap-2 justify-between sm:items-end w-full p-2">
+            <div></div>
+            <div className="flex flex-col items-center justify-center gap-4">
+              <Pagination>
+                {/* pagination */}
+                <PaginationContent>
+                  {/* previous button */}
+                  <PaginationItem>
+                    <PaginationPrevious
+                      onClick={() =>
+                        currentPage > 1 && handlePageChange(currentPage - 1)
+                      }
+                      className={
+                        currentPage === 1
+                          ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
+                          : 'cursor-pointer'
+                      }
+                    />
+                  </PaginationItem>
+
+                  {/* pagination numbers */}
+                  {pageNumbers.map((page) => (
+                    <PaginationItem key={page} className="cursor-pointer">
+                      <PaginationLink
+                        isActive={currentPage === page}
+                        onClick={() => handlePageChange(page)}
+                      >
+                        {page}
+                      </PaginationLink>
+                    </PaginationItem>
+                  ))}
+
+                  {/* next button */}
+                  <PaginationItem>
+                    <PaginationNext
+                      onClick={() =>
+                        currentPage < totalPages &&
+                        handlePageChange(currentPage + 1)
+                      }
+                      className={
+                        currentPage === totalPages
+                          ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
+                          : 'cursor-pointer'
+                      }
+                    />
+                  </PaginationItem>
+                </PaginationContent>
+              </Pagination>
+
+              {/* results */}
+              <p className="text-sm truncate text-neutral-600">
+                Showing {currentPage * allUrls.length} / {totalUrls} urls
+              </p>
+            </div>
+
+            {/* per page select */}
+            <div className="flex flex-col justify-center sm:items-center gap-1 w-full sm:w-auto items-end">
+              <span className="text-xs text-neutral-400">Per page</span>
+              <Select
+                defaultValue={limit.toString()}
+                onValueChange={(value) => handlePerPageChange(value)}
+              >
+                <SelectTrigger className="w-[50px] p-0 flex justify-center">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="2">2</SelectItem>
+                  <SelectItem value="4">4</SelectItem>
+                  <SelectItem value="6">6</SelectItem>
+                  <SelectItem value="8">8</SelectItem>
+                  <SelectItem value="10">10</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
           </div>
         </div>
