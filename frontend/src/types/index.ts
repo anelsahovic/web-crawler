@@ -14,12 +14,16 @@ export interface Url {
   h1Count: number;
   h2Count: number;
   h3Count: number;
+  h4Count: number;
+  h5Count: number;
+  h6Count: number;
   internalLinks: number;
   externalLinks: number;
   brokenLinksCount: number;
   hasLoginForm: boolean;
   status: UrlStatus;
   createdAt: string;
+  updatedAt: string;
   brokenLinks: BrokenLink[];
 }
 

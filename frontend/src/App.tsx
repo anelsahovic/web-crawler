@@ -19,7 +19,7 @@ function App() {
         <Route element={<AppLayout />}>
           <Route path="/crawl" element={<Crawl />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/url/:urlId" element={<UrlDetailPage />} />
+          <Route path="/urls/:urlId" element={<UrlDetailPage />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>

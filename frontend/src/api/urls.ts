@@ -11,6 +11,10 @@ export const getQueuedUrls = () => {
   return API.get('/urls/queued');
 };
 
+export const getUrlById = (urlId: string) => {
+  return API.get(`/urls/${urlId}`);
+};
+
 // add url to the queue
 export const addUrlToQueue = (values: CrawlUrlBody) => {
   return API.post(`/urls/queue`, values);
