@@ -12,6 +12,9 @@ router.get('/', UrlsController.index);
 // get queued urls
 router.get('/queued', UrlsController.getQueued);
 
+// get stats for dashboard
+router.get('/stats', UrlsController.stats);
+
 // get single url with id
 router.get('/:urlId', UrlsController.show);
 

@@ -22,9 +22,27 @@ export async function getQueuedUrls() {
       status: { in: ['QUEUED', 'ERROR'] },
     },
     orderBy: {
-      createdAt: 'asc',
+      updatedAt: 'asc',
     },
   });
+}
+
+export async function getUrlsStats() {
+  const [total, done, queued, error, brokenLinks] = await Promise.all([
+    prisma.url.count(),
+    prisma.url.count({ where: { status: 'DONE' } }),
+    prisma.url.count({ where: { status: 'QUEUED' } }),
+    prisma.url.count({ where: { status: 'ERROR' } }),
+    prisma.url.findMany({
+      select: { brokenLinks: { select: { statusCode: true } } },
+    }),
+  ]);
+  // Flatten the status codes
+  const statusCodes = brokenLinks.flatMap((url) =>
+    url.brokenLinks.map((link) => link.statusCode)
+  );
+
+  return { total, done, queued, error, statusCodes };
 }
 
 export async function getUrlById(id: string) {

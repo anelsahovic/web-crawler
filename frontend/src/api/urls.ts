@@ -6,11 +6,17 @@ export const getAllUrls = () => {
   return API.get('/urls');
 };
 
+// fetch urls stats
+export const getUrlsStats = () => {
+  return API.get('/urls/stats');
+};
+
 // fetch queued urls
 export const getQueuedUrls = () => {
   return API.get('/urls/queued');
 };
 
+// fetch url by ID
 export const getUrlById = (urlId: string) => {
   return API.get(`/urls/${urlId}`);
 };
@@ -45,6 +51,7 @@ export const deleteUrl = (urlId: string) => {
   return API.delete(`/urls/${urlId}`);
 };
 
+// delete many urls
 export const bulkDeleteUrls = (urlIds: string[]) => {
   return API.delete('/urls', { data: { urlIds } });
 };

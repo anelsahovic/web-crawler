@@ -9,6 +9,7 @@ import {
   getQueuedUrls,
   getUrlById,
   getUrls,
+  getUrlsStats,
   reanalyzeAndUpdateUrl,
 } from '../services/urls.service';
 import createHttpError from 'http-errors';
@@ -68,6 +69,20 @@ export const show: RequestHandler<
     res.status(200).json(url);
   } catch (error) {
     console.error(error);
+    next(error);
+  }
+};
+
+export const stats: RequestHandler = async (req, res, next) => {
+  try {
+    const stats = await getUrlsStats();
+
+    if (!stats) {
+      throw createHttpError(404, 'No stats for urls found.');
+    }
+
+    res.status(200).json(stats);
+  } catch (error) {
     next(error);
   }
 };

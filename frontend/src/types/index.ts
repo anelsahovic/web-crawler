@@ -32,3 +32,11 @@ export interface CrawlStatusUpdate {
   status: UrlStatus;
   url: Url;
 }
+
+export interface Stats {
+  total: number;
+  done: number;
+  queued: number;
+  error: number;
+  statusCodes: number[];
+}

@@ -34,13 +34,15 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { useEffect, useState } from 'react';
-import type { Url } from '@/types';
+import type { Stats, Url } from '@/types';
 import {
   bulkDeleteUrls,
   crawQueuedUrls,
   crawSelectedUrls,
   deleteUrl,
   getAllUrls,
+  getQueuedUrls,
+  getUrlsStats,
   reanalyzeUrl,
 } from '@/api/urls';
 import { toast } from 'sonner';
@@ -60,11 +62,16 @@ import CrawledDataDialog from '@/components/CrawledDataDialog';
 export default function Dashboard() {
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
-  const [doneUrls, setDoneUrls] = useState<Url[]>([]);
-  const [erroredUrls, setErroredUrls] = useState<Url[]>([]);
   const [selectedUrls, setSelectedUrls] = useState<Url[]>([]);
   const [crawlingUrlsList, setCrawlingUrlsList] = useState<Url[]>([]);
   const [reanalyzedUrl, setReanalyzedUrl] = useState<Url>();
+  const [stats, setStats] = useState<Stats>({
+    total: 0,
+    done: 0,
+    queued: 0,
+    error: 0,
+    statusCodes: [],
+  });
   const [selectedUrlsIds, setSelectedUrlsIds] = useState<string[]>([]);
   const [openCrawlingListDialog, setOpenCrawlingListDialog] = useState(false);
   const [completedCount, setCompletedCount] = useState(0);
@@ -112,7 +119,7 @@ export default function Dashboard() {
     setCrawlingProgress((completedCount / crawlingUrlsList.length) * 100);
   });
 
-  // fetch all urls
+  // fetch paginated urls , queued urls and stats
   useEffect(() => {
     const fetchAllUrls = async () => {
       try {
@@ -132,17 +139,46 @@ export default function Dashboard() {
       }
     };
 
+    const fetchUrlsStats = async () => {
+      try {
+        setLoading(true);
+        const response = await getUrlsStats();
+        if (response.status === 200) {
+          setStats(response.data);
+        } else {
+          toast.error('Error fetching stats');
+        }
+      } catch (error) {
+        console.error(error);
+        const errorMessage = getErrorMessage(error as Error);
+        toast.error(errorMessage);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    const fetchQueuedUrls = async () => {
+      try {
+        setLoading(true);
+
+        const response = await getQueuedUrls();
+
+        if (response.status === 200) {
+          setQueuedUrls(response.data);
+        } else {
+          toast.error('Error fetching stats');
+        }
+      } catch (error) {
+        console.error(error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchUrlsStats();
+    fetchQueuedUrls();
     fetchAllUrls();
   }, [refresh]);
-
-  // set done, queued, errored urls
-  useEffect(() => {
-    if (allUrls.length === 0) return;
-
-    setDoneUrls(allUrls.filter((url) => url.status === 'DONE'));
-    setQueuedUrls(allUrls.filter((url) => url.status === 'QUEUED'));
-    setErroredUrls(allUrls.filter((url) => url.status === 'ERROR'));
-  }, [allUrls]);
 
   // add/remove checked urls from the array
   const handleCheckboxChange = (id: string, urlObj: Url, checked: boolean) => {
@@ -202,11 +238,7 @@ export default function Dashboard() {
   const handleCrawlQueuedUrls = async () => {
     try {
       setSendingRequest(true);
-      setCrawlingUrlsList(
-        [...queuedUrls].sort((a, b) =>
-          compareAsc(new Date(a.createdAt), new Date(b.createdAt))
-        )
-      );
+      setCrawlingUrlsList(queuedUrls);
       setOpenCrawlingListDialog(true);
 
       const response = await crawQueuedUrls();
@@ -308,11 +340,6 @@ export default function Dashboard() {
     }
   };
 
-  // extract status codes from broken links in done urls
-  const statusCodes = doneUrls.flatMap(
-    (url) => url.brokenLinks?.map((link) => link.statusCode) || []
-  );
-
   return (
     <div className="min-h-screen flex flex-col w-full p-4 gap-4">
       {/* title */}
@@ -342,7 +369,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <span className="text-sm font-medium opacity-80">Total</span>
-                <span className="text-2xl font-bold">{allUrls.length}</span>
+                <span className="text-2xl font-bold">{stats.total}</span>
               </>
             )}
           </div>
@@ -359,7 +386,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <span className="text-sm font-medium opacity-80">Done</span>
-                <span className="text-2xl font-bold">{doneUrls.length}</span>
+                <span className="text-2xl font-bold">{stats.done}</span>
               </>
             )}
           </div>
@@ -376,7 +403,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <span className="text-sm font-medium opacity-80">Queued</span>
-                <span className="text-2xl font-bold">{queuedUrls.length}</span>
+                <span className="text-2xl font-bold">{stats.queued}</span>
               </>
             )}
           </div>
@@ -393,7 +420,7 @@ export default function Dashboard() {
             ) : (
               <>
                 <span className="text-sm font-medium opacity-80">Errored</span>
-                <span className="text-2xl font-bold">{erroredUrls.length}</span>
+                <span className="text-2xl font-bold">{stats.error}</span>
               </>
             )}
           </div>
@@ -404,12 +431,12 @@ export default function Dashboard() {
       {/* Table + Charts Section */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
         {/* Table */}
-        <div className="md:col-span-2 bg-slate-100 rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0">
+        <div className="md:col-span-2 bg-white rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0">
           {/* Select all, refresh, More options, Search and select */}
           <div className="flex items-end gap-4 mb-4">
             <div className="flex items-center gap-4 pl-3 text-neutral-500">
               <Checkbox
-                className="bg-white"
+                className="border-neutral-300 shadow"
                 checked={checkedAll}
                 onCheckedChange={handleSelectAllUrls}
               />
@@ -481,7 +508,7 @@ export default function Dashboard() {
           </div>
 
           {/* Table */}
-          <div className="overflow-auto flex-1 shadow bg-white rounded-md ">
+          <div className="overflow-auto flex-1 border border-t-2 border-primary/25 border-b-0  rounded-t-md ">
             {loading && (
               <div className="w-full h-full flex justify-center items-center">
                 <LuLoaderCircle className="animate-spin text-primary size-5" />
@@ -490,7 +517,7 @@ export default function Dashboard() {
 
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-primary/20 hover:bg-primary/20">
                   <TableHead className=""></TableHead>
                   <TableHead className="w-[100px]">Status</TableHead>
                   <TableHead>Title</TableHead>
@@ -510,6 +537,7 @@ export default function Dashboard() {
                     <TableRow key={url.id}>
                       <TableCell className="font-medium">
                         <Checkbox
+                          className="border-neutral-300 shadow"
                           checked={selectedUrlsIds.includes(url.id)}
                           onCheckedChange={(checked) =>
                             handleCheckboxChange(url.id, url, !!checked)
@@ -593,7 +621,7 @@ export default function Dashboard() {
             </div>
           ) : (
             <>
-              <BrokenLinksChartPie statusCodesArray={statusCodes} />
+              <BrokenLinksChartPie statusCodesArray={stats?.statusCodes} />
             </>
           )}
         </div>
