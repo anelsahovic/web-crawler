@@ -108,8 +108,6 @@ export default function Dashboard() {
           setAllUrls(response.data.urls);
           setTotalPages(response.data.totalPages);
           setTotalUrls(response.data.totalUrls);
-
-          console.log(response.data);
         } else {
           toast.error('Error fetching URLs');
         }
@@ -389,7 +387,7 @@ export default function Dashboard() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col w-full p-4 gap-4">
+    <div className="min-h-screen p-4 pt-20 flex flex-col w-full md:p-4 gap-4">
       {/* title */}
       <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between py-4">
         <div>

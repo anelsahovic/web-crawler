@@ -129,7 +129,7 @@ export default function UrlDetailPage() {
   };
 
   return (
-    <div className="w-full h-screen relative">
+    <div className="w-full h-screen relative pt-16 md:pt-0">
       {/* reanalyzing the url */}
       {reanalyzing && (
         <div className="fixed flex justify-center items-center gap-2 top-20 sm:top-2 left-1/2 -translate-x-1/2 p-2 text-sm bg-amber-200 text-amber-600 backdrop-blur-2xl rounded-lg">
@@ -170,7 +170,7 @@ export default function UrlDetailPage() {
 
       {/* fetching is complete and there is url found */}
       {!loading && urlData && (
-        <div className="py-20 sm:py-10 px-6 max-w-6xl mx-auto space-y-6">
+        <div className="py-10 px-6 max-w-6xl mx-auto space-y-6">
           {/* Title and Meta & Links */}
           <div className="flex flex-col gap-6 sm:flex-row justify-between items-center text-center">
             <div className="flex flex-col justify-center items-center        sm:items-start gap-1">

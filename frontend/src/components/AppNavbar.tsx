@@ -32,10 +32,10 @@ export default function AppNavbar() {
 
   return (
     <div
-      className={`fixed w-full flex flex-row-reverse justify-between items-center sm:absolute left-0 sm:left-3  sm:w-16 p-2 backdrop-blur sm:rounded-lg bg-neutral-100/30 shadow-md border z-50 transition-all duration-500 ${
+      className={`fixed w-full flex flex-row-reverse justify-between items-center md:absolute left-0 md:left-3  md:w-16 p-2 backdrop-blur md:rounded-lg bg-neutral-100/30 shadow-md border z-50 transition-all duration-500 ${
         openNavbar
-          ? 'sm:top-1/2 sm:-translate-y-1/2 border-neutral-200'
-          : 'sm:bottom-5 h-16 -translate-y-0 border-primary/30'
+          ? 'md:top-1/2 md:-translate-y-1/2 border-neutral-200'
+          : 'md:bottom-5 h-16 -translate-y-0 border-primary/30'
       }`}
     >
       <div
@@ -57,7 +57,7 @@ export default function AppNavbar() {
         {/* open home page image */}
         <Link
           to="/"
-          className="sm:hidden flex items-center gap-2 font-bold uppercase tracking-wide text-neutral-800 hover:text-primary transition-colors duration-300"
+          className="md:hidden flex items-center gap-2 font-bold uppercase tracking-wide text-neutral-800 hover:text-primary transition-colors duration-300"
         >
           <div className="w-full flex justify-center items-center p-2">
             <img
@@ -66,7 +66,7 @@ export default function AppNavbar() {
               className="size-7 object-contain"
             />
           </div>
-          <span className="w-full whitespace-nowrap text-sm sm:hidden ">
+          <span className="w-full whitespace-nowrap text-sm md:hidden ">
             Crawler
           </span>
         </Link>
@@ -74,7 +74,7 @@ export default function AppNavbar() {
         {/* open navbar image */}
         <div
           onClick={() => setOpenNavbar((prev) => !prev)}
-          className="hidden sm:flex items-center gap-2 font-bold uppercase tracking-wide text-neutral-800 hover:text-primary transition-colors duration-300 cursor-pointer"
+          className="hidden md:flex items-center gap-2 font-bold uppercase tracking-wide text-neutral-800 hover:text-primary transition-colors duration-300 cursor-pointer"
         >
           <div className="w-full flex justify-center items-center p-2">
             <img
@@ -83,14 +83,14 @@ export default function AppNavbar() {
               className="size-7 object-contain"
             />
           </div>
-          <span className="w-full whitespace-nowrap text-sm sm:hidden ">
+          <span className="w-full whitespace-nowrap text-sm md:hidden ">
             Crawler
           </span>
         </div>
 
         <div
           className={`hidden  w-full h-full  flex-col gap-2 ${
-            openNavbar ? 'sm:flex' : 'hidden'
+            openNavbar ? 'md:flex' : 'hidden'
           }`}
         >
           {/* Desktop nav links */}
@@ -105,7 +105,7 @@ export default function AppNavbar() {
               } `}
             >
               <span>{navItem.icon}</span>
-              <span className="sm:hidden"> {navItem.title}</span>
+              <span className="md:hidden"> {navItem.title}</span>
             </Link>
           ))}
         </div>
@@ -113,18 +113,18 @@ export default function AppNavbar() {
         <Link
           to={'/'}
           className={`hidden  justify-start items-center p-4 gap-2 font-semibold rounded-lg transition duration-300 ${
-            openNavbar ? 'sm:flex' : 'hidden'
+            openNavbar ? 'md:flex' : 'hidden'
           }`}
         >
           <span>
             <MdLogout className="rotate-180" />
           </span>
-          <span className="sm:hidden"> Logout</span>
+          <span className="md:hidden"> Logout</span>
         </Link>
       </div>
 
       {/* Mobile menu */}
-      <div className="flex sm:hidden items-center">
+      <div className="flex md:hidden items-center">
         <Sheet>
           <SheetTrigger className="flex items-center justify-center">
             <IoMdMenu className="size-7 text-neutral-700" />
@@ -185,7 +185,7 @@ export default function AppNavbar() {
               <span>
                 <MdLogout className="rotate-180" />
               </span>
-              <span className="sm:hidden"> Logout</span>
+              <span className="md:hidden"> Logout</span>
             </Link>
             {/* Footer / Social Links */}
             <SheetFooter className="border-t border-neutral-200 pt-4">
