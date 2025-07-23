@@ -24,6 +24,7 @@ import {
   FaRegCheckSquare,
   FaRegClock,
   FaRegTrashAlt,
+  FaSearch,
 } from 'react-icons/fa';
 import { LuLayoutDashboard, LuLoaderCircle } from 'react-icons/lu';
 import {
@@ -70,6 +71,7 @@ export default function Dashboard() {
   const [searchParams, setSearchParams] = useSearchParams();
   const currentPage = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '6');
+  const [search, setSearch] = useState(searchParams.get('search') || '');
 
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
@@ -101,11 +103,13 @@ export default function Dashboard() {
     const fetchAllUrls = async () => {
       try {
         setLoading(true);
-        const response = await getAllUrls(currentPage, limit);
+        const response = await getAllUrls(currentPage, limit, search);
         if (response.status === 200) {
           setAllUrls(response.data.urls);
           setTotalPages(response.data.totalPages);
           setTotalUrls(response.data.totalUrls);
+
+          console.log(response.data);
         } else {
           toast.error('Error fetching URLs');
         }
@@ -119,7 +123,7 @@ export default function Dashboard() {
     };
 
     fetchAllUrls();
-  }, [currentPage, limit, refresh]);
+  }, [currentPage, limit, refresh, search]);
 
   // fetch  queued urls and stats
   useEffect(() => {
@@ -475,22 +479,27 @@ export default function Dashboard() {
       {/* Table + Charts Section */}
       <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-4 min-h-0">
         {/* Table */}
-        <div className="md:col-span-2 bg-white rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0">
+        <div className="md:col-span-2 bg-white rounded-md shadow-md border flex flex-col p-4 gap-2 min-h-0 relative">
           {/* Select all, refresh, More options, Search and select */}
           <div className="flex flex-col sm:flex-row items-end gap-4 mb-4 w-full">
             <div className="flex justify-center items-end gap-4 w-full">
               {/* search */}
-              <div className="flex flex-col justify-start gap-1 w-full">
+              <div className="flex flex-col justify-start gap-1 w-full relative">
                 <p className="text-sm pl-1">Search urls</p>
                 <Input
                   type="text"
-                  className="bg-white"
-                  placeholder="Search..."
+                  className="bg-white pl-10"
+                  placeholder="Search by title, URL..."
+                  value={search}
+                  onChange={(e) => {
+                    setSearch(e.target.value);
+                    setSearchParams({ page: '1', limit: limit.toString() });
+                  }}
                 />
-              </div>
-            </div>
 
-            <div className="flex sm:flex-row-reverse justify-center items-end gap-4 w-full">
+                <FaSearch className="absolute left-3 top-1/2 translate-y-1 text-primary" />
+              </div>
+
               {/*more options */}
               <div className="flex items-center gap-4 text-neutral-500">
                 <DropdownMenu>
@@ -555,31 +564,61 @@ export default function Dashboard() {
                   </DropdownMenuContent>
                 </DropdownMenu>
               </div>
+            </div>
 
-              {/* sorting */}
-              <div className="flex flex-col justify-start gap-1">
-                <p className="text-sm pl-1">Sort by</p>
-                <Select>
-                  <SelectTrigger className="max-w-[250px] bg-white">
-                    <SelectValue placeholder="Select" />
+            <div className="flex justify-end  w-full sm:w-auto sm:justify-start items-end gap-4 ">
+              {/* per page select */}
+              <div className="flex flex-col justify-start gap-1 ">
+                <span className="text-sm pl-1">Show</span>
+                <Select
+                  defaultValue={limit.toString()}
+                  onValueChange={(value) => handlePerPageChange(value)}
+                >
+                  <SelectTrigger className="w-[50px] p-0 flex justify-center">
+                    <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="light">Created At</SelectItem>
-                    <SelectItem value="dark">Title</SelectItem>
-                    <SelectItem value="system">Status</SelectItem>
+                    <SelectItem value="2">2</SelectItem>
+                    <SelectItem value="4">4</SelectItem>
+                    <SelectItem value="6">6</SelectItem>
+                    <SelectItem value="8">8</SelectItem>
+                    <SelectItem value="10">10</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
 
-              {/* new url link */}
-              <div>
-                <Link
-                  className={buttonVariants({ variant: 'default' })}
-                  to="/crawl"
-                >
-                  Add New URL
-                </Link>
+              {/* sort by */}
+              <div className="flex flex-col justify-start gap-1">
+                <p className="text-sm pl-1">Sort by</p>
+                <Select>
+                  <SelectTrigger className="max-w-[100px]">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="created_asc">Created At -asc</SelectItem>
+                    <SelectItem value="created_dsc">Created At -dsc</SelectItem>
+                    <SelectItem value="title_a">Title - A-Z</SelectItem>
+                    <SelectItem value="title_z">Title - Z-A</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
+
+              {/* status select */}
+              <div className="flex flex-col justify-start gap-1">
+                <p className="text-sm pl-1">Status</p>
+                <Select>
+                  <SelectTrigger className="max-w-[100px]">
+                    <SelectValue placeholder="Select" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="done">Done</SelectItem>
+                    <SelectItem value="queued">Queued</SelectItem>
+                    <SelectItem value="error">Error</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* <Button>New</Button> */}
             </div>
           </div>
 
@@ -689,79 +728,69 @@ export default function Dashboard() {
             </Table>
           </div>
           {/* Pagination footer */}
-          <div className="flex flex-col sm:flex-row gap-2 justify-between sm:items-end w-full p-2">
-            <div></div>
-            <div className="flex flex-col items-center justify-center gap-4">
-              <Pagination>
-                {/* pagination */}
-                <PaginationContent>
-                  {/* previous button */}
-                  <PaginationItem>
-                    <PaginationPrevious
-                      onClick={() =>
-                        currentPage > 1 && handlePageChange(currentPage - 1)
-                      }
-                      className={
-                        currentPage === 1
-                          ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
-                          : 'cursor-pointer'
-                      }
-                    />
+          <div className="flex  justify-center items-center w-full p-2">
+            {/* pagination */}
+            <Pagination>
+              <PaginationContent>
+                {/* previous button */}
+                <PaginationItem>
+                  <PaginationPrevious
+                    onClick={() =>
+                      currentPage > 1 && handlePageChange(currentPage - 1)
+                    }
+                    className={
+                      currentPage === 1
+                        ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
+                        : 'cursor-pointer'
+                    }
+                  />
+                </PaginationItem>
+
+                {/* pagination numbers */}
+                {pageNumbers.map((page) => (
+                  <PaginationItem key={page} className="cursor-pointer">
+                    <PaginationLink
+                      isActive={currentPage === page}
+                      onClick={() => handlePageChange(page)}
+                    >
+                      {page}
+                    </PaginationLink>
                   </PaginationItem>
+                ))}
 
-                  {/* pagination numbers */}
-                  {pageNumbers.map((page) => (
-                    <PaginationItem key={page} className="cursor-pointer">
-                      <PaginationLink
-                        isActive={currentPage === page}
-                        onClick={() => handlePageChange(page)}
-                      >
-                        {page}
-                      </PaginationLink>
-                    </PaginationItem>
-                  ))}
+                {/* next button */}
+                <PaginationItem>
+                  <PaginationNext
+                    onClick={() =>
+                      currentPage < totalPages &&
+                      handlePageChange(currentPage + 1)
+                    }
+                    className={
+                      currentPage === totalPages
+                        ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
+                        : 'cursor-pointer'
+                    }
+                  />
+                </PaginationItem>
+              </PaginationContent>
+            </Pagination>
 
-                  {/* next button */}
-                  <PaginationItem>
-                    <PaginationNext
-                      onClick={() =>
-                        currentPage < totalPages &&
-                        handlePageChange(currentPage + 1)
-                      }
-                      className={
-                        currentPage === totalPages
-                          ? 'text-neutral-300 cursor-not-allowed hover:bg-neutral-50 hover:text-neutral-300'
-                          : 'cursor-pointer'
-                      }
-                    />
-                  </PaginationItem>
-                </PaginationContent>
-              </Pagination>
-
-              {/* results */}
-              <p className="text-sm truncate text-neutral-600">
-                Showing {currentPage * allUrls.length} / {totalUrls} urls
-              </p>
-            </div>
-
-            {/* per page select */}
-            <div className="flex flex-col justify-center sm:items-center gap-1 w-full sm:w-auto items-end">
-              <span className="text-xs text-neutral-400">Per page</span>
-              <Select
-                defaultValue={limit.toString()}
-                onValueChange={(value) => handlePerPageChange(value)}
-              >
-                <SelectTrigger className="w-[50px] p-0 flex justify-center">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="2">2</SelectItem>
-                  <SelectItem value="4">4</SelectItem>
-                  <SelectItem value="6">6</SelectItem>
-                  <SelectItem value="8">8</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                </SelectContent>
-              </Select>
+            {/* Results summary */}
+            <div className="absolute bottom-2 right-2 text-neutral-600 truncate text-xs">
+              {search && search.length > 0 ? (
+                <p>
+                  Showing results for{' '}
+                  <span className="font-medium text-primary">'{search}'</span>
+                </p>
+              ) : (
+                <p>
+                  Showing{' '}
+                  <span className="font-semibold text-primary">
+                    {Math.min(currentPage * limit, totalUrls)}
+                  </span>{' '}
+                  of <span className="font-semibold">{totalUrls}</span> URLs
+                </p>
+              )}
             </div>
           </div>
         </div>

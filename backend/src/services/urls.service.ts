@@ -8,14 +8,26 @@ import { emitCrawlStatus } from '../socket';
 import { compareAsc } from 'date-fns';
 export const prisma = new PrismaClient();
 
-export async function getUrls(limit: number, skip: number, page: number) {
+export async function getUrls(
+  limit: number,
+  skip: number,
+  page: number,
+  search: string
+) {
   const [urls, total] = await Promise.all([
     prisma.url.findMany({
+      where: {
+        OR: [{ title: { contains: search } }, { url: { contains: search } }],
+      },
       skip,
       take: limit,
       orderBy: { createdAt: 'desc' },
     }),
-    prisma.url.count(),
+    prisma.url.count({
+      where: {
+        OR: [{ title: { contains: search } }, { url: { contains: search } }],
+      },
+    }),
   ]);
   return {
     urls,
