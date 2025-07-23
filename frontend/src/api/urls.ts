@@ -2,8 +2,16 @@ import type { CrawlUrlBody } from '@/zodSchemas/schemas';
 import { API } from './axios';
 
 // fetch all urls
-export const getAllUrls = (page: number, limit: number, search: string) => {
-  return API.get(`/urls?search=${search}&page=${page}&limit=${limit}`);
+export const getAllUrls = (
+  page: number,
+  limit: number,
+  search: string,
+  status: string,
+  sortBy: string
+) => {
+  return API.get(
+    `/urls?search=${search}&page=${page}&limit=${limit}&status=${status}&sortBy=${sortBy}`
+  );
 };
 
 // fetch urls stats

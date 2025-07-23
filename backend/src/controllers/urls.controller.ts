@@ -22,14 +22,17 @@ import {
   ReanalyzeUrlParams,
   ShowUrlParams,
 } from '../types/index.types';
+import { UrlStatus } from '@prisma/client';
 
 export const index: RequestHandler = async (req, res, next) => {
   const search = (req.query.search as string) || '';
+  const status = (req.query.status as UrlStatus) || 'ALL';
+  const sortBy = (req.query.sortBy as string) || 'createdAtDesc';
   const page = parseInt(req.query.page as string) || 1;
   const limit = parseInt(req.query.limit as string) || 6;
   const skip = (page - 1) * limit;
   try {
-    const urls = await getUrls(limit, skip, page, search);
+    const urls = await getUrls(limit, skip, page, search, sortBy, status);
 
     if (!urls) {
       throw createHttpError(404, 'No urls found.');

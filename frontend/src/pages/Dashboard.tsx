@@ -72,6 +72,8 @@ export default function Dashboard() {
   const currentPage = parseInt(searchParams.get('page') || '1');
   const limit = parseInt(searchParams.get('limit') || '6');
   const [search, setSearch] = useState(searchParams.get('search') || '');
+  const [sortBy, setSortBy] = useState('createdAtDesc');
+  const [statusFilter, setStatusFilter] = useState('ALL');
 
   const [allUrls, setAllUrls] = useState<Url[]>([]);
   const [queuedUrls, setQueuedUrls] = useState<Url[]>([]);
@@ -103,7 +105,13 @@ export default function Dashboard() {
     const fetchAllUrls = async () => {
       try {
         setLoading(true);
-        const response = await getAllUrls(currentPage, limit, search);
+        const response = await getAllUrls(
+          currentPage,
+          limit,
+          search,
+          statusFilter,
+          sortBy
+        );
         if (response.status === 200) {
           setAllUrls(response.data.urls);
           setTotalPages(response.data.totalPages);
@@ -119,9 +127,8 @@ export default function Dashboard() {
         setLoading(false);
       }
     };
-
     fetchAllUrls();
-  }, [currentPage, limit, refresh, search]);
+  }, [currentPage, limit, refresh, search, sortBy, statusFilter]);
 
   // fetch  queued urls and stats
   useEffect(() => {
@@ -369,21 +376,24 @@ export default function Dashboard() {
   const handlePerPageChange = (perPage: string) => {
     setSearchParams({ page: currentPage.toString(), limit: perPage });
   };
+  const pageNumbers: number[] = [];
 
-  // Determine start and end pages to always show 3 buttons when possible
-  let startPage = Math.max(1, currentPage - 1);
-  let endPage = Math.min(totalPages, currentPage + 1);
+  if (totalPages > 0) {
+    // Determine start and end pages to always show 3 buttons when possible
+    let startPage = Math.max(1, currentPage - 1);
+    let endPage = Math.min(totalPages, currentPage + 1);
 
-  // Adjust if we're at the start or end to keep 3 buttons
-  if (currentPage === 1) {
-    endPage = Math.min(totalPages, 3);
-  } else if (currentPage === totalPages && totalPages >= 3) {
-    startPage = totalPages - 2;
-  }
-  // Build the page number array
-  const pageNumbers = [];
-  for (let i = startPage; i <= endPage; i++) {
-    pageNumbers.push(i);
+    // Adjust if we're at the start or end to keep 3 buttons
+    if (currentPage === 1) {
+      endPage = Math.min(totalPages, 3);
+    } else if (currentPage === totalPages && totalPages >= 3) {
+      startPage = totalPages - 2;
+    }
+
+    // Build the page number array
+    for (let i = startPage; i <= endPage; i++) {
+      pageNumbers.push(i);
+    }
   }
 
   return (
@@ -588,15 +598,18 @@ export default function Dashboard() {
               {/* sort by */}
               <div className="flex flex-col justify-start gap-1">
                 <p className="text-sm pl-1">Sort by</p>
-                <Select>
+                <Select
+                  onValueChange={(value) => setSortBy(value)}
+                  defaultValue="createdAtDesc"
+                >
                   <SelectTrigger className="max-w-[100px]">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="created_asc">Created At -asc</SelectItem>
-                    <SelectItem value="created_dsc">Created At -dsc</SelectItem>
-                    <SelectItem value="title_a">Title - A-Z</SelectItem>
-                    <SelectItem value="title_z">Title - Z-A</SelectItem>
+                    <SelectItem value="createdAtDesc">Newest</SelectItem>
+                    <SelectItem value="createdAtAsc">Oldest</SelectItem>
+                    <SelectItem value="titleAsc">Title A-Z</SelectItem>
+                    <SelectItem value="titleDesc">Title Z-A</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -604,14 +617,19 @@ export default function Dashboard() {
               {/* status select */}
               <div className="flex flex-col justify-start gap-1">
                 <p className="text-sm pl-1">Status</p>
-                <Select>
+                <Select
+                  onValueChange={(value) => setStatusFilter(value)}
+                  defaultValue="ALL"
+                >
                   <SelectTrigger className="max-w-[100px]">
                     <SelectValue placeholder="Select" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="done">Done</SelectItem>
-                    <SelectItem value="queued">Queued</SelectItem>
-                    <SelectItem value="error">Error</SelectItem>
+                    <SelectItem value="ALL">All</SelectItem>
+                    <SelectItem value="DONE">Done</SelectItem>
+                    <SelectItem value="QUEUED">Queued</SelectItem>
+                    <SelectItem value="RUNNING">Running</SelectItem>
+                    <SelectItem value="ERROR">Error</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -632,7 +650,6 @@ export default function Dashboard() {
               <TableHeader>
                 <TableRow className="bg-primary/20 hover:bg-primary/20">
                   <TableHead className="">
-                    {' '}
                     <Checkbox
                       className="bg-white border-neutral-300 shadow"
                       checked={checkedAll}
@@ -648,8 +665,17 @@ export default function Dashboard() {
               </TableHeader>
 
               <TableBody>
+                {allUrls.length === 0 && (
+                  <TableRow>
+                    <TableCell
+                      colSpan={6}
+                      className="text-center py-8 hover:bg-white bg-white"
+                    >
+                      No URLs found.
+                    </TableCell>
+                  </TableRow>
+                )}
                 {/* data rows */}
-
                 {!loading &&
                   allUrls &&
                   allUrls.length > 0 &&

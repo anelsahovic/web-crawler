@@ -1,4 +1,4 @@
-import { PrismaClient, Url, UrlStatus } from '@prisma/client';
+import { Prisma, PrismaClient, Url, UrlStatus } from '@prisma/client';
 import { CrawlUrlBody } from '../zodSchemas/urls.schemas';
 import axios from 'axios';
 import * as cheerio from 'cheerio';
@@ -12,20 +12,45 @@ export async function getUrls(
   limit: number,
   skip: number,
   page: number,
-  search: string
+  search: string,
+  sortBy: string,
+  status: UrlStatus | 'ALL'
 ) {
+  const sortMap: Record<string, Prisma.UrlOrderByWithRelationInput> = {
+    createdAtDesc: { createdAt: 'desc' },
+    createdAtAsc: { createdAt: 'asc' },
+    titleAsc: { title: 'asc' },
+    titleDesc: { title: 'desc' },
+  };
+
   const [urls, total] = await Promise.all([
     prisma.url.findMany({
       where: {
-        OR: [{ title: { contains: search } }, { url: { contains: search } }],
+        AND: [
+          {
+            OR: [
+              { title: { contains: search } },
+              { url: { contains: search } },
+            ],
+          },
+          { status: status !== 'ALL' ? status : {} },
+        ],
       },
       skip,
       take: limit,
-      orderBy: { createdAt: 'desc' },
+      orderBy: sortMap[sortBy],
     }),
     prisma.url.count({
       where: {
-        OR: [{ title: { contains: search } }, { url: { contains: search } }],
+        AND: [
+          {
+            OR: [
+              { title: { contains: search } },
+              { url: { contains: search } },
+            ],
+          },
+          { status: status !== 'ALL' ? status : {} },
+        ],
       },
     }),
   ]);
@@ -173,6 +198,7 @@ export async function reanalyzeAndUpdateUrl(urlId: string) {
   return await prisma.url.update({
     where: { id: urlId },
     data: {
+      status: 'DONE',
       htmlVersion: newCrawledData.htmlVersion,
       title: newCrawledData.title,
       h1Count: newCrawledData.h1Count,
