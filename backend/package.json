@@ -7,7 +7,9 @@
     "dev": "nodemon --watch src --ext ts --exec ts-node src/server.ts",
     "build": "tsc",
     "start": "node dist/server.js",
-    "lint": "eslint . --ext .ts"
+    "lint": "eslint . --ext .ts",
+    "db:deploy": "npx prisma migrate deploy && npx prisma generate && npx prisma ",
+    "db:seed": "npx prisma db seed"
   },
   "prisma": {
     "seed": "ts-node src/prisma/seed.ts"

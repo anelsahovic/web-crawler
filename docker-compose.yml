@@ -1,0 +1,42 @@
+version: '3.9'
+
+services:
+  db:
+    image: mysql:8
+    container_name: mysql-db
+    restart: always
+    environment:
+      - MYSQL_ROOT_PASSWORD=root
+      - MYSQL_DATABASE=crawlerdb
+      - MYSQL_USER=user
+      - MYSQL_PASSWORD=password
+    ports:
+      - '3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+
+  backend:
+    build: ./backend
+    container_name: crawler-backend
+    ports:
+      - '5001:5001'
+    environment:
+      DATABASE_URL: mysql://user:password@db:3306/crawlerdb
+      AUTH_TOKEN: mysecrettoken123
+      PORT: 5001
+    depends_on:
+      - db
+
+  frontend:
+    build: ./frontend
+    container_name: crawler-frontend
+    ports:
+      - '5173:5173'
+    environment:
+      VITE_API_URL: http://localhost:5001
+      VITE_SECRET_TOKEN: mysecrettoken123
+    depends_on:
+      - backend
+
+volumes:
+  mysql_data:
