@@ -1,3 +1,5 @@
+![demo-gif](https://github.com/user-attachments/assets/6a84786b-fb64-4e68-83df-577248034198)
+
 # 🕸️ Web Crawler App
 
 A full-stack web crawler application built with **Node.js**, **Express**, **Prisma**, **MySQL**, **React**, and **TypeScript**, fully containerized using **Docker**.
